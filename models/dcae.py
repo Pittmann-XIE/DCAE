@@ -469,8 +469,7 @@ class MutiScaleDictionaryCrossAttentionGLU(nn.Module):
         self.ln_mlp = nn.LayerNorm(dict_dim)
     
         self.mlp = ConvolutionalGLU(dict_dim, mlp_rate * dict_dim)
-        self.output_trans = nn.Sequential(
-            nn.Linear(dict_dim, output_dim))
+        self.output_trans = nn.Sequential(nn.Linear(dict_dim, output_dim))
         self.softmax = torch.nn.Softmax(dim=-1)
 
         self.res_scale_1 = Scale(dict_dim, init_value=1.0)
@@ -526,8 +525,8 @@ class DCAE(CompressionModel):
         basic_block = [ResScaleConvolutionGateBlock, ResScaleConvolutionGateBlock, ResScaleConvolutionGateBlock]
         swin_block = [SwinBlockWithConvMulti, SwinBlockWithConvMulti, SwinBlockWithConvMulti]
         
-        block_num = [0, 0, 4]
-        # block_num = [1, 2, 12]
+        # block_num = [0, 0, 4]
+        block_num = [1, 2, 12]
 
         dict_num = 128
         dict_head_num = 20
