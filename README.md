@@ -68,7 +68,7 @@ CUDA_VISIBLE_DEVICE=0 python -u ./compress_and_decompress.py --cuda  --data [pat
  --save_path [path for storing the bin files] --mode compress --checkpoint [path of the pretrained checkpoint]
 ```
 
-### Deompress images from bin files
+### Decompress images from bin files
 
 ```bash
 CUDA_VISIBLE_DEVICE=0 python -u ./compress_and_decompress.py --cuda  --data [path of bin files to be decompressed] \
