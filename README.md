@@ -75,20 +75,20 @@ CUDA_VISIBLE_DEVICE=0 python -u ./compress_and_decompress.py --cuda  --data [pat
  --save_path [path for storing the decompressed images] --mode decompress --checkpoint [path of the pretrained checkpoint]
 ```
 ### Pretrained Model
-| Lambda | Metric | Link |
-|--------|--------|------|
-| 0.05   | MSE    |   [link](https://drive.google.com/file/d/1jCsRJq7Ttx22-yWQbEQAHJWbdIDtc30k/view)   |
-| 0.025   | MSE    |   [link](https://drive.google.com/file/d/1-6ZZ-bScGYj448h1sqMTX4w2Q75MQQ1q/view)   |
-| 0.013   | MSE    |   [link](https://drive.google.com/file/d/1kXfvxsljdN3EfXDGqzknFc2Ecsgf8qgS/view)   |
-| 0.0067   | MSE    |   [link](https://drive.google.com/file/d/1LdycatKcGXHvFjoR-NE-GWnPlL9-BRWX/view)   |
-| 0.0035   | MSE    |   [link](https://drive.google.com/file/d/1JE0SO876a-btXzOQLTilj7D0vJdePlB4/view)   |
-| 0.0018   | MSE    |   [link](https://drive.google.com/file/d/1JzVuERiZe8cStgLnE5TJii_ssppgY1p-/view)   |
-| 60.5   | MS-SSIM    |   [link](https://drive.google.com/file/d/1S81POfELTNyWmy2mMRlL70vuKjGC5QC_/view)   |
-| 31.73   | MS-SSIM    |   [link](https://drive.google.com/file/d/1208tRiJw37ruKON1JVPj2YLp23l2O42U/view)   |
-| 16.64   | MS-SSIM    |   [link](https://drive.google.com/file/d/1hzgbNPGxfXrwQN-OmTIujGBXCIXYsnW1/view)   |
-| 8.73   | MS-SSIM    |   [link](https://drive.google.com/file/d/1U-1f24E6IrKjdHvzObnMslYBLA2YAKXe/view)   |
-| 4.58   | MS-SSIM    |   [link](https://drive.google.com/file/d/1br6rf4WtwLY9NPvRCY3GyVP_lvrXRi9y/view)   |
-| 2.40   | MS-SSIM    |   [link](https://drive.google.com/file/d/1BIgupje5UcEwzOch3QG1pooCxRxE6Rtt/view)   |
+| Lambda | Metric | Link | Lambda | Metric | Link |
+|--------|--------|------|--------|--------|------|
+| 0.05   | MSE    |   [link](https://drive.google.com/file/d/1jCsRJq7Ttx22-yWQbEQAHJWbdIDtc30k/view)   | 60.5   | MS-SSIM    |   [link](https://drive.google.com/file/d/1S81POfELTNyWmy2mMRlL70vuKjGC5QC_/view)   |
+| 0.025  | MSE    |   [link](https://drive.google.com/file/d/1-6ZZ-bScGYj448h1sqMTX4w2Q75MQQ1q/view)   | 31.73  | MS-SSIM    |   [link](https://drive.google.com/file/d/1208tRiJw37ruKON1JVPj2YLp23l2O42U/view)   |
+| 0.013  | MSE    |   [link](https://drive.google.com/file/d/1kXfvxsljdN3EfXDGqzknFc2Ecsgf8qgS/view)   | 16.64  | MS-SSIM    |   [link](https://drive.google.com/file/d/1hzgbNPGxfXrwQN-OmTIujGBXCIXYsnW1/view)   |
+| 0.0067 | MSE    |   [link](https://drive.google.com/file/d/1LdycatKcGXHvFjoR-NE-GWnPlL9-BRWX/view)   | 8.73   | MS-SSIM    |   [link](https://drive.google.com/file/d/1U-1f24E6IrKjdHvzObnMslYBLA2YAKXe/view)   |
+| 0.0035 | MSE    |   [link](https://drive.google.com/file/d/1JE0SO876a-btXzOQLTilj7D0vJdePlB4/view)   | 4.58   | MS-SSIM    |   [link](https://drive.google.com/file/d/1br6rf4WtwLY9NPvRCY3GyVP_lvrXRi9y/view)   |
+| 0.0018 | MSE    |   [link](https://drive.google.com/file/d/1JzVuERiZe8cStgLnE5TJii_ssppgY1p-/view)   | 2.40   | MS-SSIM    |   [link](https://drive.google.com/file/d/1BIgupje5UcEwzOch3QG1pooCxRxE6Rtt/view)   |
+
+
+
+
+
+
 
 ### Citation
 
