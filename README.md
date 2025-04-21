@@ -61,6 +61,19 @@ CUDA_VISIBLE_DEVICES='0, 1' python -m torch.distributed.launch --nproc_per_node=
 CUDA_VISIBLE_DEVICES='0' python eval.py --checkpoint [path of the pretrained checkpoint] --data [path of test dataset] --cuda
 ```
 
+### Compress images into bin files
+
+```bash
+CUDA_VISIBLE_DEVICE=0 python -u ./compress_and_decompress.py --cuda  --data [path of images to be compressed] \
+ --save_path [path for storing the bin files] --mode compress --checkpoint [path of the pretrained checkpoint]
+```
+
+### Deompress images from bin files
+
+```bash
+CUDA_VISIBLE_DEVICE=0 python -u ./compress_and_decompress.py --cuda  --data [path of bin files to be decompressed] \
+ --save_path [path for storing the decompressed images] --mode decompress --checkpoint [path of the pretrained checkpoint]
+```
 ### Pretrained Model
 | Lambda | Metric | Link |
 |--------|--------|------|
