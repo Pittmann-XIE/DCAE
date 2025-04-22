@@ -509,8 +509,8 @@ class MutiScaleDictionaryCrossAttentionGLU(nn.Module):
         return output
 
 class DCAE(CompressionModel):
-    def __init__(self, head_dim=[8, 16, 32, 32, 16, 8], drop_path_rate=0, N=192,  M=320, num_slices=5, max_support_slices=5, **kwargs):
-        super().__init__() 
+    def __init__(self, head_dim=[8, 16, 32, 32, 16, 8], drop_path_rate=0, N=192,  M=320, num_slices=5, max_support_slices=5, entropy_bottleneck_channels=192, **kwargs):
+        super().__init__(entropy_bottleneck_channels=entropy_bottleneck_channels, **kwargs) 
         self.head_dim = head_dim
         self.window_size = 8
         self.num_slices = num_slices
@@ -683,7 +683,8 @@ class DCAE(CompressionModel):
             ["_quantized_cdf", "_offset", "_cdf_length", "scale_table"],
             state_dict,
         )
-        super().load_state_dict(state_dict, strict=strict)
+        # super().load_state_dict(state_dict, strict=strict)
+        super().load_state_dict(state_dict)
 
     @classmethod
     def from_state_dict(cls, state_dict):

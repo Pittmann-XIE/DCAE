@@ -73,8 +73,8 @@ def parse_args(argv):
         type=float,
         help="gradient clipping max norm (default: %(default)s",
     )
-    parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint")
-    parser.add_argument("--data", type=str, help="Path to dataset")
+    parser.add_argument("--checkpoint", type=str, default="./16.64checkpoint_best.pth.tar", help="Path to a checkpoint")
+    parser.add_argument("--data", type=str, default="../datasets/dummy/valid", help="Path to dataset")
     parser.add_argument("--save_path", default=None, type=str, help="Path to save")
     parser.add_argument(
         "--real", action="store_true", default=True
@@ -97,7 +97,9 @@ def main(argv):
         device = 'cuda:0'
     else:
         device = 'cpu'
-        
+    
+    print("device been used:", device)
+
     net = DCAE()
     net = net.to(device)
     net.eval()
@@ -119,6 +121,10 @@ def main(argv):
         for k, v in checkpoint["state_dict"].items():
             dictory[k.replace("module.", "")] = v
         net.load_state_dict(dictory)
+        # print details of the model
+        # print("Model loaded successfully: ", net)
+        # for k, v in net.named_parameters():
+        #     print(f'{k}: {v.size()}')
         
     if args.real:
         net.update()
@@ -189,9 +195,9 @@ def main(argv):
                 total_time += (e - s)
                 out_net['x_hat'].clamp_(0, 1)
                 out_net["x_hat"] = crop(out_net["x_hat"], padding)
-                print(f'PSNR: {compute_psnr(x, out_net["x_hat"]):.2f}dB')
-                print(f'MS-SSIM: {compute_msssim(x, out_net["x_hat"]):.2f}dB')
-                print(f'Bit-rate: {compute_bpp(out_net):.3f}bpp')
+                # print(f'PSNR: {compute_psnr(x, out_net["x_hat"]):.2f}dB')
+                # print(f'MS-SSIM: {compute_msssim(x, out_net["x_hat"]):.2f}dB')
+                # print(f'Bit-rate: {compute_bpp(out_net):.3f}bpp')
                 PSNR += compute_psnr(x, out_net["x_hat"])
                 MS_SSIM += compute_msssim(x, out_net["x_hat"])
                 Bit_rate += compute_bpp(out_net)
@@ -211,8 +217,8 @@ def main(argv):
     print(f'average_MS-SSIM: {MS_SSIM:.4f}')
     print(f'average_Bit-rate: {Bit_rate:.3f} bpp')
     print(f'average_time: {total_time:.3f} ms')
-    print(f'average_encode_time: {encode_time:.3f} ms')
-    print(f'average_decode_time: {decode_time:.3f} ms')
+    print(f'average_encode_time: {encode_time:.6f} ms')
+    print(f'average_decode_time: {decode_time:.6f} ms')
     print(f'average_flops: {ave_flops:.3f}')
 
 if __name__ == "__main__":
