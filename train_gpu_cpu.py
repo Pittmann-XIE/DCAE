@@ -31,8 +31,6 @@ import os
 torch.set_num_threads(8)
 torch.backends.cudnn.deterministic=True
 torch.backends.cudnn.benchmark=False
-torch.set_default_dtype(torch.float16)  # Set default dtype to float32
-
 
 def test_compute_psnr(a, b):
     b = b.to(a.device)
@@ -420,6 +418,10 @@ def main(argv):
     net = DCAE()
     net = net.to(device)
 
+    net.g_a = net.g_a.cpu()
+    net.h_a = net.h_a.cpu()
+
+
     if args.cuda and torch.cuda.device_count() > 1:
         net = nn.parallel.DistributedDataParallel(net, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True)
         train_sampler = DistributedSampler(train_dataset)
@@ -455,12 +457,8 @@ def main(argv):
     last_epoch = 0
     if args.checkpoint:  
         print("Loading", args.checkpoint)
-        dictory = {}
         checkpoint = torch.load(args.checkpoint, map_location=device)
-        for k, v in checkpoint["state_dict"].items():
-            dictory[k.replace("module.", "")] = v
-        # net.load_state_dict(checkpoint["state_dict"])
-        net.load_state_dict(dictory)
+        net.load_state_dict(checkpoint["state_dict"])
 
         if args.continue_train:
             last_epoch = checkpoint["epoch"] + 1
@@ -469,7 +467,6 @@ def main(argv):
             lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
 
     best_loss = float("inf")
-    print(last_epoch, args.epochs)
     for epoch in range(last_epoch, args.epochs):
         train_one_epoch(
             net,

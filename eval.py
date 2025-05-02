@@ -212,13 +212,13 @@ def main(argv):
     decode_time = decode_time /count
     ave_flops = ave_flops / count
     encoder_time = encoder_time / count
-    print(f'average_encoder_time: {encoder_time:.3f} ms')
+    print(f'average_encoder_time: {encoder_time:.3f} s')
     print(f'average_PSNR: {PSNR:.2f} dB')
     print(f'average_MS-SSIM: {MS_SSIM:.4f}')
     print(f'average_Bit-rate: {Bit_rate:.3f} bpp')
-    print(f'average_time: {total_time:.3f} ms')
-    print(f'average_encode_time: {encode_time:.6f} ms')
-    print(f'average_decode_time: {decode_time:.6f} ms')
+    print(f'average_time: {total_time:.3f} s')
+    print(f'average_encode_time: {encode_time:.6f} s')
+    print(f'average_decode_time: {decode_time:.6f} s')
     print(f'average_flops: {ave_flops:.3f}')
 
 if __name__ == "__main__":

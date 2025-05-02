@@ -89,7 +89,7 @@ def _update_registered_buffer(
     policy="resize_if_empty",
     dtype=torch.int,
 ):
-    # state_dict_key = state_dict if state_dict_key in state_dict.keys() else "module." + state_dict_key
+    #state_dict_key = state_dict if state_dict_key in state_dict.keys() else "module." + state_dict_key
 
 
     new_size = state_dict[state_dict_key].size()
@@ -552,10 +552,10 @@ class DCAE(CompressionModel):
         self.m_up3 = [swin_block[0](feature_dim[0], feature_dim[0], self.head_dim[5], self.window_size, 0, basic_block[0], block_num=block_num[0])] + \
                       [ResidualBottleneckBlockWithUpsample(feature_dim[0], output_image_channel)]
         
-        self.g_a = nn.Sequential(*[ResidualBottleneckBlockWithStride(input_image_channel, feature_dim[0])] + self.m_down1 + self.m_down2 + self.m_down3) # encoder, analyze image x → latent y
+        self.g_a = nn.Sequential(*[ResidualBottleneckBlockWithStride(input_image_channel, feature_dim[0])] + self.m_down1 + self.m_down2 + self.m_down3)
         
 
-        self.g_s = nn.Sequential(*[deconv(M, feature_dim[2], kernel_size=5, stride=2)] + self.m_up1 + self.m_up2 + self.m_up3) # decoder, synthesize latent y → image x_hat
+        self.g_s = nn.Sequential(*[deconv(M, feature_dim[2], kernel_size=5, stride=2)] + self.m_up1 + self.m_up2 + self.m_up3)
 
         self.ha_down = [SwinBlockWithConvMulti(N, N, 32, 4, 0, ResScaleConvolutionGateBlock, block_num=1)] + \
                       [conv(N, 192, kernel_size=3, stride=2)] 
@@ -563,7 +563,7 @@ class DCAE(CompressionModel):
         self.h_a = nn.Sequential(
             *[ResidualBottleneckBlockWithStride(M, N)] + \
             self.ha_down 
-        ) # hyper-decoder, synthesize latent z → side information z_hat
+        )
 
         self.hs_up1 = [SwinBlockWithConvMulti(N, N, 32, 4, 0, ResScaleConvolutionGateBlock, block_num=1)] + \
                       [ResidualBottleneckBlockWithUpsample(N, M)]
@@ -579,7 +579,7 @@ class DCAE(CompressionModel):
         self.h_z_s2 = nn.Sequential(
             *[deconv(192, N, kernel_size=3, stride=2)] + \
             self.hs_up2
-        ) # map z_hat into latent space
+        )
 
         self.cc_mean_transforms = nn.ModuleList(
             nn.Sequential(
@@ -630,7 +630,7 @@ class DCAE(CompressionModel):
         _, z_likelihoods = self.entropy_bottleneck(z)
         z_offset = self.entropy_bottleneck._get_medians()
         z_tmp = z - z_offset
-        z_hat = ste_round(z_tmp) + z_offset # qutantized z
+        z_hat = ste_round(z_tmp) + z_offset
         
         latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat)
@@ -696,23 +696,46 @@ class DCAE(CompressionModel):
         return net
 
     def compress(self, x):
+        ##
+        x = x.cpu()
+        self.g_a = self.g_a.cpu()
+        self.h_a = self.h_a.cpu()
+        self.entropy_bottleneck = self.entropy_bottleneck.cpu()
+        self.h_z_s1 = self.h_z_s1.cpu()
+        self.h_z_s2 = self.h_z_s2.cpu()
+        ##
+
+
         b = x.size(0)
-        dt = self.dt.repeat([b, 1, 1])
-        y = self.g_a(x) # y: latent representation, self.g_a(): encoder, Encoder transforms image x → latent y
+        dt = self.dt.repeat([b, 1, 1]).cpu()
+        y = self.g_a(x)
         y_shape = y.shape[2:]
 
-        z = self.h_a(y) # side information to capture the spatial dependency, h_a(): hyper-encoder, Hyperencoder transforms y → z
-        z_strings = self.entropy_bottleneck.compress(z) 
-        z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:]) # quatntized z
-
+        z = self.h_a(y)
+        z_strings = self.entropy_bottleneck.compress(z)
+        z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:])
 
         latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat)
 
-        y_slices = y.chunk(self.num_slices, 1) # y_i
+        y_slices = y.chunk(self.num_slices, 1)
         y_hat_slices = []
-        y_scales = [] # \sigma_i for y__i, eq.4
-        y_means = [] # \mu_i for y__i, eq.4
+        y_scales = []
+        y_means = []
+
+        ##
+        # Move attention modules to CPU
+        for module in self.dt_cross_attention:
+            module = module.cpu()
+        
+        # Move transforms to CPU
+        for transform in self.cc_mean_transforms:
+            transform = transform.cpu()
+        for transform in self.cc_scale_transforms:
+            transform = transform.cpu()
+        for transform in self.lrp_transforms:
+            transform = transform.cpu()
+        ##
 
         cdf = self.gaussian_conditional.quantized_cdf.tolist()
         cdf_lengths = self.gaussian_conditional.cdf_length.reshape(-1).int().tolist()
@@ -726,7 +749,7 @@ class DCAE(CompressionModel):
         for slice_index, y_slice in enumerate(y_slices):
             support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
             query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
-            dict_info = self.dt_cross_attention[slice_index](query, dt) # dt: dictionary. dt_cross_attention: dictionary-based Cross-attention, fig. 3. dict_info: \Phi_i)
+            dict_info = self.dt_cross_attention[slice_index](query, dt)
             support = torch.cat([query] + [dict_info], dim=1)
             mu = self.cc_mean_transforms[slice_index](support)
             mu = mu[:, :, :y_shape[0], :y_shape[1]]
@@ -744,8 +767,8 @@ class DCAE(CompressionModel):
 
             lrp_support = torch.cat([support, y_hat_slice], dim=1)
             lrp = self.lrp_transforms[slice_index](lrp_support)
-            lrp = 0.5 * torch.tanh(lrp) # r_i
-            y_hat_slice += lrp # the output of proposed dictionary-based cross-attention Entropy Model, y_i^\hat
+            lrp = 0.5 * torch.tanh(lrp)
+            y_hat_slice += lrp
 
             y_hat_slices.append(y_hat_slice)
             y_scales.append(scale)
@@ -755,83 +778,7 @@ class DCAE(CompressionModel):
         y_string = encoder.flush()
         y_strings.append(y_string)
 
-        return {"strings": [y_strings, z_strings], "shape": z.size()[-2:], "debug": [y, z, x]}
-    # def compress(self, x):
-    #     b = x.size(0)
-    #     dt = self.dt.repeat([b, 1, 1])
-    #     y = self.g_a(x) # y: latent representation, self.g_a(): encoder, Encoder transforms image x → latent y
-    #     # y = torch.load("/home/xie/DCAE/output/debug/debug/gpu_pt/image_1743411007.664348877_y.pt", map_location="cpu")
-    #     # print("loaded y")
-    #     y_shape = y.shape[2:]
-
-    #     z = self.h_a(y) # side information to capture the spatial dependency, h_a(): hyper-encoder, Hyperencoder transforms y → z
-    #     # z = torch.load("/home/xie/DCAE/output/debug/debug/cuda/image_1743411007.664348877_z.pt", map_location="cpu")
-    #     # print("loaded z")
-    #     z_strings = self.entropy_bottleneck.compress(z)
-    #     # z_strings = torch.load("/home/xie/DCAE/output/debug/debug/gpu_pt_zstrings/image_1743411007.664348877_z_strings.pt", map_location="cpu")
-    #     # print("load z_strings")
-    #     z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:]) # quatntized z
-
-
-    #     latent_scales = self.h_z_s1(z_hat)
-    #     latent_means = self.h_z_s2(z_hat)
-
-    #     y_slices = y.chunk(self.num_slices, 1) # y_i
-    #     y_hat_slices = []
-    #     y_scales = [] # \sigma_i for y__i, eq.4
-    #     y_means = [] # \mu_i for y__i, eq.4
-
-    #     cdf = self.gaussian_conditional.quantized_cdf.tolist()
-    #     # cdf = torch.load("/home/xie/DCAE/output/debug/debug/cuda/image_1743411007.664348877_cdf.pt", map_location='cpu')
-    #     # print("load cdf")
-    #     cdf_lengths = self.gaussian_conditional.cdf_length.reshape(-1).int().tolist()
-    #     offsets = self.gaussian_conditional.offset.reshape(-1).int().tolist()
-
-    #     encoder = BufferedRansEncoder()
-    #     symbols_list = []
-    #     indexes_list = []
-    #     y_strings = []
-
-    #     for slice_index, y_slice in enumerate(y_slices):
-    #         support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
-    #         query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
-    #         dict_info = self.dt_cross_attention[slice_index](query, dt) # dt: dictionary. dt_cross_attention: dictionary-based Cross-attention, fig. 3. dict_info: \Phi_i)
-    #         support = torch.cat([query] + [dict_info], dim=1)
-    #         mu = self.cc_mean_transforms[slice_index](support)
-    #         mu = mu[:, :, :y_shape[0], :y_shape[1]]
-            
-    #         scale = self.cc_scale_transforms[slice_index](support)
-    #         scale = scale[:, :, :y_shape[0], :y_shape[1]]
-
-    #         index = self.gaussian_conditional.build_indexes(scale)
-    #         y_q_slice = self.gaussian_conditional.quantize(y_slice, "symbols", mu)
-    #         y_hat_slice = y_q_slice + mu
-
-    #         symbols_list.extend(y_q_slice.reshape(-1).tolist())
-    #         indexes_list.extend(index.reshape(-1).tolist())
-
-
-    #         lrp_support = torch.cat([support, y_hat_slice], dim=1)
-    #         lrp = self.lrp_transforms[slice_index](lrp_support)
-    #         lrp = 0.5 * torch.tanh(lrp) # r_i
-    #         y_hat_slice += lrp # the output of proposed dictionary-based cross-attention Entropy Model, y_i^\hat
-
-    #         y_hat_slices.append(y_hat_slice)
-    #         y_scales.append(scale)
-    #         y_means.append(mu)
-
-    #     encoder.encode_with_indexes(symbols_list, indexes_list, cdf, cdf_lengths, offsets)
-    #     y_string = encoder.flush()
-    #     y_strings.append(y_string)
-
-    #     print(f'types: {type(symbols_list)}, {type(indexes_list)}, {type(cdf)}, {type(cdf_lengths)}, {type(offsets)}, {type(y_strings[0])}')
-    #     print(f'lengths: {len(symbols_list)}, {len(indexes_list)}, {len(cdf)}, {len(cdf_lengths)}, {len(offsets)}, {len(y_strings[0])}')
-    #     # print(y_strings[0])
-
-    #     # y_strings = torch.load("/home/xie/DCAE/output/debug/debug/cuda/image_1743411007.664348877_str_y.pt", map_location="cpu")
-    #     # print("load y_strings")
-
-    #     return {"strings": [y_strings, z_strings], "shape": z.size()[-2:], "debug": [y, z, y_strings, symbols_list, indexes_list, cdf, cdf_lengths, offsets, y_strings]}
+        return {"strings": [y_strings, z_strings], "shape": z.size()[-2:]}
 
     def _likelihood(self, inputs, scales, means=None):
         half = float(0.5)
@@ -854,6 +801,23 @@ class DCAE(CompressionModel):
         return half * torch.erfc(const * inputs)
 
     def decompress(self, strings, shape):
+        ##
+        device = "cuda"
+        self.entropy_bottleneck = self.entropy_bottleneck.to(device)
+        self.h_z_s1 = self.h_z_s1.to(device)
+        self.h_z_s2 = self.h_z_s2.to(device)
+        self.g_s = self.g_s.to(device)
+
+        for module in self.dt_cross_attention:
+            module = module.to(device)
+
+        for transform in self.cc_mean_transforms:
+            transform = transform.to(device)
+        for transform in self.cc_scale_transforms:
+            transform = transform.to(device)
+        for transform in self.lrp_transforms:
+            transform = transform.to(device)
+        ##
 
         z_hat = self.entropy_bottleneck.decompress(strings[1], shape)
         latent_scales = self.h_z_s1(z_hat)

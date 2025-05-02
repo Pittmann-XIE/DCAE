@@ -59,7 +59,7 @@ def parse_args(argv):
     )
     parser.add_argument("--checkpoint", type=str, default="./60.5checkpoint_best.pth.tar", help="Path to a checkpoint")
     parser.add_argument("--save_path", type=str, help="Path to save")
-    parser.add_argument("--data", type=str, help="Path to dataset")
+    parser.add_argument("--data", type=str, default="../datasets/dummy/valid", help="Path to dataset")
     parser.add_argument("--mode", type=str, choices=['compress', "decompress"])
     parser.add_argument(
         "--real", action="store_true", default=True
@@ -81,6 +81,7 @@ def save_bin(string, size, img_name, bin_path):
         f.write(string[0][0])
         f.write(struct.pack(">I", len(string[1][0])))  
         f.write(string[1][0])
+
 
 def send_file(args, img_name, host, port):
     # extract file name
@@ -115,6 +116,42 @@ def send_file(args, img_name, host, port):
             print('END')
     finally:
         sock.close()
+
+
+def pack_bin(string, size):
+    packed_data = b''
+    packed_data += struct.pack(">H", size[0])
+    packed_data += struct.pack(">H", size[1])
+    packed_data += struct.pack(">I", len(string[0][0]))
+    packed_data += string[0][0]
+    packed_data += struct.pack(">I", len(string[1][0]))
+    packed_data += string[1][0]
+    return packed_data
+
+def send_files_bytes(img_name, data_bytes, host, port):
+    file_name, ext = os.path.splitext(img_name)
+    bin_name = file_name + '.bin'
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        server_address = (host, port)
+        print(f'connecting {server_address}')
+        sock.connect(server_address)
+
+        header = f'{bin_name}|{len(data_bytes)}'
+        sock.sendall(header.encode())
+
+        ack = sock.recv(1024).decode()
+        if ack != 'ACK':
+            print('The server has not been confirmed and the transmission has been suspended.')
+            return
+        print('The server has been confirmed and the transmission has started.')
+
+        # Send the data in chunks
+        sock.sendall(data_bytes)
+        print('END')
+    finally:
+        sock.close()
+
 
 def main(argv):
     torch.backends.cudnn.enabled = False
@@ -158,8 +195,10 @@ def main(argv):
             x_padded, padding = pad(x, p)
             x_padded.to(device)
             out_enc = net.compress(x_padded)
-            save_bin(out_enc["strings"], x_size, img_name, base_path)
-            send_file(args, img_name, host='172.16.29.231', port=8888)
+            # save_bin(out_enc["strings"], x_size, img_name, base_path)
+            # send_file(args, img_name, host='172.16.29.231', port=8888)
+            pack_bined_data = pack_bin(out_enc["strings"], x_size)
+            send_files_bytes(img_name, pack_bined_data, host='localhost', port=8888)
 
 
 if __name__ == "__main__":

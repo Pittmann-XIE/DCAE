@@ -1,0 +1,556 @@
+nohup: ignoring input
+/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+/home/xie/LightweightLIC/compressai/models/video/google.py:357: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  @amp.autocast(enabled=False)
+local_rank : -1
+dataset : ../datasets/openimages
+epochs : 100
+learning_rate : 0.0001
+num_workers : 20
+lmbda : 60.5
+batch_size : 8
+test_batch_size : 8
+aux_learning_rate : 0.001
+patch_size : (256, 256)
+cuda : True
+save : True
+drop : False
+seed : 100
+clip_max_norm : 1.0
+checkpoint : /home/xie/DCAE/60.5checkpoint_best.pth.tar
+type : mse
+save_path : ./checkpoints
+N : 128
+M : 320
+lr_epoch : [50]
+continue_train : True
+milestones:  [50]
+Loading /home/xie/DCAE/60.5checkpoint_best.pth.tar
+91 100
+time : 34.1911735534668
+lr : 1e-05
+Train epoch 91: [800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.95949959754944
+lr : 1e-05
+Train epoch 91: [1600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.114556074142456
+lr : 1e-05
+Train epoch 91: [2400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.08600640296936
+lr : 1e-05
+Train epoch 91: [3200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.74481248855591
+lr : 1e-05
+Train epoch 91: [4000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.269474029541016
+lr : 1e-05
+Train epoch 91: [4800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.4804482460022
+lr : 1e-05
+Train epoch 91: [5600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.02731442451477
+lr : 1e-05
+Train epoch 91: [6400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.27894115447998
+lr : 1e-05
+Train epoch 91: [7200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.326186180114746
+lr : 1e-05
+Train epoch 91: [8000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.971434354782104
+lr : 1e-05
+Train epoch 91: [8800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.185991287231445
+lr : 1e-05
+Train epoch 91: [9600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.18067455291748
+lr : 1e-05
+Train epoch 91: [10400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.342952489852905
+lr : 1e-05
+Train epoch 91: [11200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.7328999042511
+lr : 1e-05
+Train epoch 91: [12000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.167221546173096
+lr : 1e-05
+Train epoch 91: [12800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.97821879386902
+lr : 1e-05
+Train epoch 91: [13600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.144025802612305
+lr : 1e-05
+Train epoch 91: [14400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.149373054504395
+lr : 1e-05
+Train epoch 91: [15200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.07266283035278
+lr : 1e-05
+Train epoch 91: [16000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.28617596626282
+lr : 1e-05
+Train epoch 91: [16800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.19534516334534
+lr : 1e-05
+Train epoch 91: [17600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.22566080093384
+lr : 1e-05
+Train epoch 91: [18400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.02203989028931
+lr : 1e-05
+Train epoch 91: [19200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.148316383361816
+lr : 1e-05
+Train epoch 91: [20000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.832611083984375
+lr : 1e-05
+Train epoch 91: [20800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.82160472869873
+lr : 1e-05
+Train epoch 91: [21600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.159706354141235
+lr : 1e-05
+Train epoch 91: [22400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.32243299484253
+lr : 1e-05
+Train epoch 91: [23200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.887934923171997
+lr : 1e-05
+Train epoch 91: [24000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.904288053512573
+lr : 1e-05
+Train epoch 91: [24800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.18477201461792
+lr : 1e-05
+Train epoch 91: [25600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.88414168357849
+lr : 1e-05
+Train epoch 91: [26400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.165613651275635
+lr : 1e-05
+Train epoch 91: [27200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.16208815574646
+lr : 1e-05
+Train epoch 91: [28000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.092143535614014
+lr : 1e-05
+Train epoch 91: [28800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.17270755767822
+lr : 1e-05
+Train epoch 91: [29600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.20927023887634
+lr : 1e-05
+Train epoch 91: [30400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.954827070236206
+lr : 1e-05
+Train epoch 91: [31200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.87981915473938
+lr : 1e-05
+Train epoch 91: [32000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.50466299057007
+lr : 1e-05
+Train epoch 91: [32800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.529927015304565
+lr : 1e-05
+Train epoch 91: [33600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.25364065170288
+lr : 1e-05
+Train epoch 91: [34400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.803942441940308
+lr : 1e-05
+Train epoch 91: [35200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.98125195503235
+lr : 1e-05
+Train epoch 91: [36000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.14620661735535
+lr : 1e-05
+Train epoch 91: [36800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.960291147232056
+lr : 1e-05
+Train epoch 91: [37600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.44182205200195
+lr : 1e-05
+Train epoch 91: [38400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.02650332450867
+lr : 1e-05
+Train epoch 91: [39200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.451040744781494
+lr : 1e-05
+Train epoch 91: [40000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.365684032440186
+lr : 1e-05
+Train epoch 91: [40800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.91137385368347
+lr : 1e-05
+Train epoch 91: [41600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.08241939544678
+lr : 1e-05
+Train epoch 91: [42400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.24724555015564
+lr : 1e-05
+Train epoch 91: [43200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.620561599731445
+lr : 1e-05
+Train epoch 91: [44000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.13490891456604
+lr : 1e-05
+Train epoch 91: [44800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.12755036354065
+lr : 1e-05
+Train epoch 91: [45600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.40729331970215
+lr : 1e-05
+Train epoch 91: [46400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.570317268371582
+lr : 1e-05
+Train epoch 91: [47200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.06011486053467
+lr : 1e-05
+Train epoch 91: [48000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.126977920532227
+lr : 1e-05
+Train epoch 91: [48800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.02675175666809
+lr : 1e-05
+Train epoch 91: [49600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.19130349159241
+lr : 1e-05
+Train epoch 91: [50400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.8376145362854
+lr : 1e-05
+Train epoch 91: [51200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.23245573043823
+lr : 1e-05
+Train epoch 91: [52000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.18285417556763
+lr : 1e-05
+Train epoch 91: [52800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.029260873794556
+lr : 1e-05
+Train epoch 91: [53600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.098098278045654
+lr : 1e-05
+Train epoch 91: [54400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.10391426086426
+lr : 1e-05
+Train epoch 91: [55200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.901751041412354
+lr : 1e-05
+Train epoch 91: [56000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.09891223907471
+lr : 1e-05
+Train epoch 91: [56800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.059346437454224
+lr : 1e-05
+Train epoch 91: [57600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.874645471572876
+lr : 1e-05
+Train epoch 91: [58400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.02736687660217
+lr : 1e-05
+Train epoch 91: [59200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.24270820617676
+lr : 1e-05
+Train epoch 91: [60000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.05559754371643
+lr : 1e-05
+Train epoch 91: [60800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.853626251220703
+lr : 1e-05
+Train epoch 91: [61600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.91409707069397
+lr : 1e-05
+Train epoch 91: [62400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.27454376220703
+lr : 1e-05
+Train epoch 91: [63200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.145801067352295
+lr : 1e-05
+Train epoch 91: [64000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.967336416244507
+lr : 1e-05
+Train epoch 91: [64800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.64543104171753
+lr : 1e-05
+Train epoch 91: [65600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.554694890975952
+lr : 1e-05
+Train epoch 91: [66400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.09567832946777
+lr : 1e-05
+Train epoch 91: [67200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.913463592529297
+lr : 1e-05
+Train epoch 91: [68000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.856172800064087
+lr : 1e-05
+Train epoch 91: [68800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.083545207977295
+lr : 1e-05
+Train epoch 91: [69600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.828631162643433
+lr : 1e-05
+Train epoch 91: [70400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.38067317008972
+lr : 1e-05
+Train epoch 91: [71200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.056254625320435
+lr : 1e-05
+Train epoch 91: [72000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.87224006652832
+lr : 1e-05
+Train epoch 91: [72800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.95713233947754
+lr : 1e-05
+Train epoch 91: [73600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.72020673751831
+lr : 1e-05
+Train epoch 91: [74400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.841268301010132
+lr : 1e-05
+Train epoch 91: [75200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.804309368133545
+lr : 1e-05
+Train epoch 91: [76000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.54679536819458
+lr : 1e-05
+Train epoch 91: [76800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.820076942443848
+lr : 1e-05
+Train epoch 91: [77600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.00113487243652
+lr : 1e-05
+Train epoch 91: [78400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.90502381324768
+lr : 1e-05
+Train epoch 91: [79200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.75038170814514
+lr : 1e-05
+Train epoch 91: [80000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.1591854095459
+lr : 1e-05
+Train epoch 91: [80800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.35426664352417
+lr : 1e-05
+Train epoch 91: [81600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.245941400527954
+lr : 1e-05
+Train epoch 91: [82400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.16203713417053
+lr : 1e-05
+Train epoch 91: [83200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.03565955162048
+lr : 1e-05
+Train epoch 91: [84000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.05834245681763
+lr : 1e-05
+Train epoch 91: [84800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.20981168746948
+lr : 1e-05
+Train epoch 91: [85600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.20425200462341
+lr : 1e-05
+Train epoch 91: [86400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.909260749816895
+lr : 1e-05
+Train epoch 91: [87200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.03760504722595
+lr : 1e-05
+Train epoch 91: [88000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.250747203826904
+lr : 1e-05
+Train epoch 91: [88800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.30910325050354
+lr : 1e-05
+Train epoch 91: [89600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.40749979019165
+lr : 1e-05
+Train epoch 91: [90400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.470348596572876
+lr : 1e-05
+Train epoch 91: [91200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.46967887878418
+lr : 1e-05
+Train epoch 91: [92000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.04428029060364
+lr : 1e-05
+Train epoch 91: [92800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 30.881083726882935
+lr : 1e-05
+Train epoch 91: [93600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.26258397102356
+lr : 1e-05
+Train epoch 91: [94400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.97490167617798
+lr : 1e-05
+Train epoch 91: [95200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.199535608291626
+lr : 1e-05
+Train epoch 91: [96000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.438114404678345
+lr : 1e-05
+Train epoch 91: [96800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.01965546607971
+lr : 1e-05
+Train epoch 91: [97600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.560818672180176
+lr : 1e-05
+Train epoch 91: [98400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.87759828567505
+lr : 1e-05
+Train epoch 91: [99200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.4138605594635
+lr : 1e-05
+Train epoch 91: [100000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.23323035240173
+lr : 1e-05
+Train epoch 91: [100800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.361748695373535
+lr : 1e-05
+Train epoch 91: [101600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.42193269729614
+lr : 1e-05
+Train epoch 91: [102400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.916720390319824
+lr : 1e-05
+Train epoch 91: [103200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.52660775184631
+lr : 1e-05
+Train epoch 91: [104000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.945658683776855
+lr : 1e-05
+Train epoch 91: [104800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.758301734924316
+lr : 1e-05
+Train epoch 91: [105600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.846296548843384
+lr : 1e-05
+Train epoch 91: [106400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.212238073349
+lr : 1e-05
+Train epoch 91: [107200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.25206685066223
+lr : 1e-05
+Train epoch 91: [108000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.72601652145386
+lr : 1e-05
+Train epoch 91: [108800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.58869814872742
+lr : 1e-05
+Train epoch 91: [109600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.49807906150818
+lr : 1e-05
+Train epoch 91: [110400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.981416702270508
+lr : 1e-05
+Train epoch 91: [111200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.752399921417236
+lr : 1e-05
+Train epoch 91: [112000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.540013313293457
+lr : 1e-05
+Train epoch 91: [112800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.861536502838135
+lr : 1e-05
+Train epoch 91: [113600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.983214378356934
+lr : 1e-05
+Train epoch 91: [114400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.14202880859375
+lr : 1e-05
+Train epoch 91: [115200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.17346143722534
+lr : 1e-05
+Train epoch 91: [116000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.939023733139038
+lr : 1e-05
+Train epoch 91: [116800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.95214581489563
+lr : 1e-05
+Train epoch 91: [117600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.91934037208557
+lr : 1e-05
+Train epoch 91: [118400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.981858491897583
+lr : 1e-05
+Train epoch 91: [119200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.32821297645569
+lr : 1e-05
+Train epoch 91: [120000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.095372676849365
+lr : 1e-05
+Train epoch 91: [120800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.310171127319336
+lr : 1e-05
+Train epoch 91: [121600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.3494348526001
+lr : 1e-05
+Train epoch 91: [122400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.02963304519653
+lr : 1e-05
+Train epoch 91: [123200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.869829416275024
+lr : 1e-05
+Train epoch 91: [124000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.334721326828
+lr : 1e-05
+Train epoch 91: [124800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.73066329956055
+lr : 1e-05
+Train epoch 91: [125600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.4864604473114
+lr : 1e-05
+Train epoch 91: [126400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 32.0168993473053
+lr : 1e-05
+Train epoch 91: [127200/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.857698917388916
+lr : 1e-05
+Train epoch 91: [128000/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.610986948013306
+lr : 1e-05
+Train epoch 91: [128800/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.617964506149292
+lr : 1e-05
+Train epoch 91: [129600/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+time : 31.000933408737183
+lr : 1e-05
+Train epoch 91: [130400/287300]	Loss: nan |	MSE loss: nan |	Bpp loss: nan |	Aux loss: nan
+Traceback (most recent call last):
+  File "/home/xie/DCAE/train.py", line 517, in <module>
+    main(sys.argv[1:])
+  File "/home/xie/DCAE/train.py", line 474, in main
+    train_one_epoch(
+  File "/home/xie/DCAE/train.py", line 167, in train_one_epoch
+    for i, d in enumerate(train_dataloader):
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 708, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1480, in _next_data
+    return self._process_data(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1505, in _process_data
+    data.reraise()
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/torch/_utils.py", line 733, in reraise
+    raise exception
+OSError: Caught OSError in DataLoader worker process 1.
+Original Traceback (most recent call last):
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+            ~~~~~~~~~~~~^^^^^
+  File "/home/xie/LightweightLIC/compressai/datasets/image.py", line 75, in __getitem__
+    img = Image.open(self.samples[index]).convert("RGB")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/PIL/Image.py", line 982, in convert
+    self.load()
+  File "/home/xie/miniconda3/envs/torch_gpu311/lib/python3.11/site-packages/PIL/ImageFile.py", line 386, in load
+    raise OSError(msg)
+OSError: image file is truncated (12 bytes not processed)
+
