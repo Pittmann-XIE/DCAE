@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms
 from models import (
-    DCAE    
+    DCAE   
 )
 import warnings
 import torch
@@ -75,7 +75,12 @@ def parse_args(argv):
     )
     parser.add_argument("--checkpoint", type=str, default="./16.64checkpoint_best.pth.tar", help="Path to a checkpoint")
     parser.add_argument("--data", type=str, default="../datasets/dummy/valid", help="Path to dataset")
-    parser.add_argument("--save_path", default=None, type=str, help="Path to save")
+    parser.add_argument("--save_path", default="./output/eval", type=str, help="path to save the output of encoder")
+    # parser.add_argument("--device_encoder", default=None, type=str, help="Path to save")
+    # parser.add_argument("--device_decoder", default=None, type=str, help="Path to save")
+    parser.add_argument("--mode", default=None, type=str, help="mode")
+
+
     parser.add_argument(
         "--real", action="store_true", default=True
     )
@@ -126,7 +131,57 @@ def main(argv):
         # for k, v in net.named_parameters():
         #     print(f'{k}: {v.size()}')
         
-    if args.real:
+    if args.real and args.mode=="compress":
+        net.update()
+        for img_name in img_list:
+            img_path = os.path.join(path, img_name)
+            img = transforms.ToTensor()(Image.open(img_path).convert('RGB')).to(device)
+            x = img.unsqueeze(0)
+            x_padded, padding = pad(x, p)
+            x_padded.to(device)
+            count += 1
+            # print("img_name: ", img_name)
+            # print("save_path", args.save_path)
+            file_name, ext = os.path.splitext(img_name)
+            path_to_save = os.path.join(args.save_path, file_name+"_out_enc.pth")
+
+            with torch.no_grad():
+                if args.cuda:
+                    torch.cuda.synchronize()
+                # s = time.time()
+                out_enc = net.compress(x_padded)
+                torch.save(out_enc, path_to_save)
+                # if args.cuda:
+                #     torch.cuda.synchronize()
+                # e = time.time()
+                # encode_time += (e - s)
+                # total_time += (e - s)
+                # # flops, params = profile(net, inputs=(x_padded,))
+
+                # # flops, params = profile(net, inputs=(out_enc["strings"], out_enc["shape"]))
+                # # print('flops:{}'.format(flops))
+                # # print('params:{}'.format(params))
+                # if args.cuda:
+                #     torch.cuda.synchronize()
+                # s = time.time()
+                # out_dec = net.decompress(out_enc["strings"], out_enc["shape"])
+                # if args.cuda:
+                #     torch.cuda.synchronize()
+                # e = time.time()
+                # decode_time += (e - s)
+                # total_time += (e - s)
+
+                # out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
+                # num_pixels = x.size(0) * x.size(2) * x.size(3)
+                # # print(f'Bitrate: {(sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels):.3f}bpp')
+                # # print(f'MS-SSIM: {compute_msssim(x, out_dec["x_hat"]):.2f}dB')
+                # # print(f'PSNR: {compute_psnr(x, out_dec["x_hat"]):.2f}dB')
+                # bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
+                # Bit_rate += sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
+                # PSNR += compute_psnr(x, out_dec["x_hat"])
+                # MS_SSIM += compute_msssim(x, out_dec["x_hat"])
+
+    elif args.real and args.mode=="decompress":
         net.update()
         for img_name in img_list:
             img_path = os.path.join(path, img_name)
@@ -136,37 +191,42 @@ def main(argv):
             x_padded.to(device)
 
             count += 1
+
+
             with torch.no_grad():
-                if args.cuda:
-                    torch.cuda.synchronize()
-                s = time.time()
-                out_enc = net.compress(x_padded)
-                if args.cuda:
-                    torch.cuda.synchronize()
-                e = time.time()
-                encode_time += (e - s)
-                total_time += (e - s)
+                # if args.cuda:
+                #     torch.cuda.synchronize()
+                # s = time.time()
+                # out_enc = net.compress(x_padded)
+                # if args.cuda:
+                #     torch.cuda.synchronize()
+                # e = time.time()
+                # encode_time += (e - s)
+                # total_time += (e - s)
                 # flops, params = profile(net, inputs=(x_padded,))
 
                 # flops, params = profile(net, inputs=(out_enc["strings"], out_enc["shape"]))
                 # print('flops:{}'.format(flops))
                 # print('params:{}'.format(params))
-                if args.cuda:
-                    torch.cuda.synchronize()
-                s = time.time()
+                # if args.cuda:
+                #     torch.cuda.synchronize()
+                # s = time.time()
+                file_name, ext = os.path.splitext(img_name)
+                path_to_save = os.path.join(args.save_path, file_name+"_out_enc.pth")
+                out_enc = torch.load(path_to_save)
                 out_dec = net.decompress(out_enc["strings"], out_enc["shape"])
-                if args.cuda:
-                    torch.cuda.synchronize()
-                e = time.time()
-                decode_time += (e - s)
-                total_time += (e - s)
+                # if args.cuda:
+                #     torch.cuda.synchronize()
+                # e = time.time()
+                # decode_time += (e - s)
+                # total_time += (e - s)
 
                 out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
                 num_pixels = x.size(0) * x.size(2) * x.size(3)
                 # print(f'Bitrate: {(sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels):.3f}bpp')
                 # print(f'MS-SSIM: {compute_msssim(x, out_dec["x_hat"]):.2f}dB')
                 # print(f'PSNR: {compute_psnr(x, out_dec["x_hat"]):.2f}dB')
-                bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
+                # bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
                 Bit_rate += sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
                 PSNR += compute_psnr(x, out_dec["x_hat"])
                 MS_SSIM += compute_msssim(x, out_dec["x_hat"])

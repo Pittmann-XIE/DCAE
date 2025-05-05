@@ -19,13 +19,12 @@ import pandas as pd
 import numpy as np
 import torch.nn as nn
 import struct
-import base64
 
 warnings.filterwarnings("ignore")
 
 print(torch.cuda.is_available())
 
-torch.set_default_dtype(torch.float64)  # Set default dtype to float32
+# torch.set_default_dtype(torch.float64)  # Set default dtype to float32
 
 print(torch.get_default_dtype())
 

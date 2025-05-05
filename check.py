@@ -428,37 +428,57 @@
 #     print("The CSV files are different.")
 
 
-import struct
+# import struct
 
 
-def read_bin(file_path):
-    with open(file_path, 'rb') as f:
-        # Read sizes (if needed)
-        size0 = struct.unpack('>H', f.read(2))[0]
-        size1 = struct.unpack('>H', f.read(2))[0]
+# def read_bin(file_path):
+#     with open(file_path, 'rb') as f:
+#         # Read sizes (if needed)
+#         size0 = struct.unpack('>H', f.read(2))[0]
+#         size1 = struct.unpack('>H', f.read(2))[0]
 
-        # Read the first string
-        len_str0 = struct.unpack('>I', f.read(4))[0]
-        string_y = f.read(len_str0)
+#         # Read the first string
+#         len_str0 = struct.unpack('>I', f.read(4))[0]
+#         string_y = f.read(len_str0)
 
-        # Read the second string
-        len_str1 = struct.unpack('>I', f.read(4))[0]
-        string_z = f.read(len_str1)
+#         # Read the second string
+#         len_str1 = struct.unpack('>I', f.read(4))[0]
+#         string_z = f.read(len_str1)
 
-    return string_y, string_z
+#     return string_y, string_z
 
-def compare_strings(string1, string2):
-    if string1 == string2:
-        print("Equal")
-    else:
-        print("Not equal")
+# def compare_strings(string1, string2):
+#     if string1 == string2:
+#         print("Equal")
+#     else:
+#         print("Not equal")
 
 
-file_1 = "/home/xie/DCAE/output/debug/bin_cpu_zstrings/image_1743411007.664348877.bin"
-file_2 = "/home/xie/DCAE/output/debug/bin_gpu/image_1743411007.664348877.bin"
+# file_1 = "/home/xie/DCAE/output/debug/bin_cpu_zstrings/image_1743411007.664348877.bin"
+# file_2 = "/home/xie/DCAE/output/debug/bin_gpu/image_1743411007.664348877.bin"
 
-string_y_1, string_z_1 = read_bin(file_1)
-string_y_2, string_z_2 = read_bin(file_2)    
-compare_strings(string_y_1, string_y_2)
-compare_strings(string_z_1, string_z_2)
+# string_y_1, string_z_1 = read_bin(file_1)
+# string_y_2, string_z_2 = read_bin(file_2)    
+# compare_strings(string_y_1, string_y_2)
+# compare_strings(string_z_1, string_z_2)
 
+import inspect
+from compressai.ans import BufferedRansEncoder
+
+# This will print the source code if CompressAI is installed from source
+print(inspect.getsource(BufferedRansEncoder))
+
+# from compressai.ans import BufferedRansEncoder
+
+# help(BufferedRansEncoder)
+
+# import torch
+
+# # Load the checkpoint
+# checkpoint = torch.load('0.0018checkpoint_best.pth.tar')
+# state_dict = checkpoint['state_dict'] if 'state_dict' in checkpoint else checkpoint
+
+# # Print parameter dtypes
+# for param_name, weights in state_dict.items():
+#     print(param_name, weights.dtype)
+#     break  # remove or adjust this break to view all parameters

@@ -23,7 +23,7 @@ from compressai.zoo import models
 from pytorch_msssim import ms_ssim
 
 from models import (
-    DCAE
+    DCAE_2
 
 )
 from torch.utils.tensorboard import SummaryWriter   
@@ -31,6 +31,8 @@ import os
 torch.set_num_threads(8)
 torch.backends.cudnn.deterministic=True
 torch.backends.cudnn.benchmark=False
+# torch.set_default_dtype(torch.float64)  # Set default dtype to float32
+# python -u ./train.py -d ../datasets/openimages -lr 1e-4 --cuda --epochs 50 --lr_epoch 46 --batch-size 8 --save_path ./checkpoints --save 
 
 def test_compute_psnr(a, b):
     b = b.to(a.device)
@@ -167,26 +169,26 @@ def train_one_epoch(
         d = d.to(device)
         optimizer.zero_grad()
         aux_optimizer.zero_grad()
-        out_net = model(d)
-        out_criterion = criterion(out_net, d)
-        out_criterion["loss"].backward()
+        out_net = model(d) # the result of the forward method of the model
+        out_criterion = criterion(out_net, d) # calculate the loss
+        out_criterion["loss"].backward() # backpropagation of the joint loss
 
-        if clip_max_norm > 0:
+        if clip_max_norm > 0: # gradient clipping to avoid exploding gradients
             torch.nn.utils.clip_grad_norm_(model.parameters(), clip_max_norm) 
-        optimizer.step()
+        optimizer.step() # Update the model’s main parameters.
         
         aux_loss = model.module.aux_loss() if torch.cuda.device_count() > 1 else model.aux_loss()
         aux_loss.backward()
-        aux_optimizer.step()
+        aux_optimizer.step() # Update the auxiliary parameters.
         
 
-        if (i+1) % 100 == 0:
+        if (i+1) % 100 == 0: # print training information every 100 iterations
             pre_time = now_time
             now_time = time.time()
             print(f'time : {now_time-pre_time}\n', end='')
             print(f'lr : {lr_scheduler.get_last_lr()[0]}\n', end='')
             
-            if type == 'mse':
+            if type == 'mse': # default option
                 print(
                     f"Train epoch {epoch}: ["
                     f"{(i+1)*len(d)}/{len(train_dataloader.dataset)}]"
@@ -221,7 +223,7 @@ def test_epoch(epoch, test_dataloader, model, criterion, type='mse', args=None):
                 out_net = model(d)
                 out_criterion = criterion(out_net, d)
                 loss.update(out_criterion["loss"])
-                aux_loss.update(model.module.aux_loss() if torch.cuda.device_count() > 1 else model.aux_loss())
+                aux_loss.update(model.module.aux_loss() if torch.cuda.device_count() > 1 else model.aux_loss()) # average over the batch
                 mse_loss.update(out_criterion["mse_loss"])
                 bpp_loss.update(out_criterion["bpp_loss"])
 
@@ -415,17 +417,33 @@ def main(argv):
     else: 
         device = "cuda"
         
-    net = DCAE()
+    net = DCAE_2()
     net = net.to(device)
 
-    net.g_a = net.g_a.cpu()
-    net.h_a = net.h_a.cpu()
+    # 2) 子模块分配设备：编码器放CPU，解码器放GPU
+    net.g_a.to('cpu')
+    net.h_a.to('cpu')
 
+    # 如果你在forward中让h_a也在CPU，就留着，否则可以放在GPU
+    net.h_z_s1.to('cuda')
+    net.h_z_s2.to('cuda')
+
+    # 字典注意力相关
+    net.dt_cross_attention.to('cuda')
+    for transform in net.cc_mean_transforms:
+        transform.to('cuda')
+    for transform in net.cc_scale_transforms:
+        transform.to('cuda')
+    for transform in net.lrp_transforms:
+        transform.to('cuda')
+
+    net.g_s.to('cuda')
 
     if args.cuda and torch.cuda.device_count() > 1:
         net = nn.parallel.DistributedDataParallel(net, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True)
         train_sampler = DistributedSampler(train_dataset)
         test_sampler = DistributedSampler(test_dataset)
+        print("Using", torch.cuda.device_count(), "GPUs")
         
     train_dataloader = DataLoader(
         train_dataset,
@@ -448,7 +466,7 @@ def main(argv):
 
     optimizer, aux_optimizer = configure_optimizers(net, args)
     milestones = args.lr_epoch
-    print("milestones: ", milestones)
+    print("milestones: ", milestones)     
 
 
     lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
@@ -457,8 +475,12 @@ def main(argv):
     last_epoch = 0
     if args.checkpoint:  
         print("Loading", args.checkpoint)
+        dictory = {}
         checkpoint = torch.load(args.checkpoint, map_location=device)
-        net.load_state_dict(checkpoint["state_dict"])
+        for k, v in checkpoint["state_dict"].items():
+            dictory[k.replace("module.", "")] = v
+        # net.load_state_dict(checkpoint["state_dict"])
+        net.load_state_dict(dictory)
 
         if args.continue_train:
             last_epoch = checkpoint["epoch"] + 1
@@ -467,6 +489,7 @@ def main(argv):
             lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
 
     best_loss = float("inf")
+    print(last_epoch, args.epochs)
     for epoch in range(last_epoch, args.epochs):
         train_one_epoch(
             net,
@@ -491,9 +514,10 @@ def main(argv):
 
         is_best = loss < best_loss
         best_loss = min(loss, best_loss)
+        print("prepare to save")
 
         if args.save and global_rank == 0:
-                save_checkpoint(
+            save_checkpoint(
                     {
                         "epoch": epoch,
                         "state_dict": net.state_dict(),
@@ -507,6 +531,7 @@ def main(argv):
                     save_path,
                     save_path + str(epoch) + "_checkpoint.pth.tar",
                 )
+            print("saved")
 
 
 

@@ -508,8 +508,8 @@ class MutiScaleDictionaryCrossAttentionGLU(nn.Module):
         output = rearrange(output, 'b h w c -> b c h w', )
         return output
 
-class DCAE_1(CompressionModel):
-    def __init__(self, head_dim=[8, 16, 32, 32, 16, 8], drop_path_rate=0, N=192,  M=320, num_slices=5, max_support_slices=5, entropy_bottleneck_channels=192, **kwargs):
+class DCAE_2(CompressionModel):
+    def __init__(self, head_dim=[8, 16, 32, 32, 16, 8], drop_path_rate=0, N=192,  M=320, num_slices=5, max_support_slices=5,entropy_bottleneck_channels=192, **kwargs):
         super().__init__(entropy_bottleneck_channels=entropy_bottleneck_channels, **kwargs) 
         self.head_dim = head_dim
         self.window_size = 8
@@ -528,9 +528,9 @@ class DCAE_1(CompressionModel):
         # block_num = [0, 0, 4]
         block_num = [1, 2, 12]
 
-        dict_num = 128 # number of dictionary entries
-        dict_head_num = 20 
-        dict_dim = 32 * dict_head_num # number of feature dimensions, each head has 32 dimensions
+        dict_num = 128
+        dict_head_num = 20
+        dict_dim = 32 * dict_head_num
         self.dt = nn.Parameter(torch.randn([dict_num, dict_dim]), requires_grad=True)
         
         prior_dim = M
@@ -620,60 +620,148 @@ class DCAE_1(CompressionModel):
         updated |= super().update(force=force)
         return updated
     
-    def forward(self, x):
-        b = x.size(0)
-        dt = self.dt.repeat([b, 1, 1])
-        y = self.g_a(x) 
-        y_shape = y.shape[2:]
+    # def forward(self, x):
+    #     b = x.size(0)
+    #     dt = self.dt.repeat([b, 1, 1])
+    #     y = self.g_a(x) 
+    #     y_shape = y.shape[2:]
         
-        z = self.h_a(y)
-        _, z_likelihoods = self.entropy_bottleneck(z)
-        z_offset = self.entropy_bottleneck._get_medians()
-        z_tmp = z - z_offset
-        z_hat = ste_round(z_tmp) + z_offset
+    #     z = self.h_a(y)
+    #     _, z_likelihoods = self.entropy_bottleneck(z)
+    #     z_offset = self.entropy_bottleneck._get_medians()
+    #     z_tmp = z - z_offset
+    #     z_hat = ste_round(z_tmp) + z_offset
         
-        latent_scales = self.h_z_s1(z_hat)
-        latent_means = self.h_z_s2(z_hat)
+    #     latent_scales = self.h_z_s1(z_hat)
+    #     latent_means = self.h_z_s2(z_hat)
 
-        y_slices = y.chunk(self.num_slices, 1)
+    #     y_slices = y.chunk(self.num_slices, 1)
+    #     y_hat_slices = []
+    #     y_likelihood = []
+    #     mu_list = []
+    #     scale_list = []
+    #     for slice_index, y_slice in enumerate(y_slices):
+    #         support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
+    #         query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
+    #         dict_info = self.dt_cross_attention[slice_index](query, dt)
+    #         support = torch.cat([query] + [dict_info], dim=1)
+            
+    #         mu = self.cc_mean_transforms[slice_index](support)
+    #         mu = mu[:, :, :y_shape[0], :y_shape[1]]
+    #         mu_list.append(mu)
+            
+    #         scale = self.cc_scale_transforms[slice_index](support)
+    #         scale = scale[:, :, :y_shape[0], :y_shape[1]]
+    #         scale_list.append(scale)
+            
+    #         _, y_slice_likelihood = self.gaussian_conditional(y_slice, scale, mu)
+    #         y_likelihood.append(y_slice_likelihood)
+    #         y_hat_slice = ste_round(y_slice - mu) + mu
+
+    #         lrp_support = torch.cat([support, y_hat_slice], dim=1)
+    #         lrp = self.lrp_transforms[slice_index](lrp_support)
+    #         lrp = 0.5 * torch.tanh(lrp)
+    #         y_hat_slice += lrp
+    #         y_hat_slices.append(y_hat_slice)
+
+    #     y_hat = torch.cat(y_hat_slices, dim=1)
+    #     means = torch.cat(mu_list, dim=1)
+    #     scales = torch.cat(scale_list, dim=1)
+    #     y_likelihoods = torch.cat(y_likelihood, dim=1)
+        
+    #     x_hat = self.g_s(y_hat)
+    #     return {
+    #         "x_hat": x_hat,
+    #         "likelihoods": {"y": y_likelihoods, "z": z_likelihoods},
+    #         "para":{"means": means, "scales":scales, "y":y}
+    #     }
+
+    def forward(self, x: torch.Tensor):
+        """
+        将编码器流程放在 CPU(float32)，解码器和后处理放在 GPU(float32)。
+        注意: 需在外部先把 g_a, h_a 放到 CPU, 
+             把 dt_cross_attention, h_z_s*, g_s 等放到 GPU。
+        """
+
+        # 1) 输入放到CPU(float32)
+        x_cpu = x.to('cpu', dtype=torch.float32)
+
+        # 2) 编码器在CPU: g_a
+        y_cpu = self.g_a(x_cpu)  # [B, M, h, w]
+
+        # 3) 超先验编码器也在CPU: h_a
+        z_cpu = self.h_a(y_cpu)  # [B, N, h_z, w_z]
+
+        # 4) 因为后续要做量化和解码，所以将 z 移到 GPU
+        z_gpu = z_cpu.to('cuda', dtype=torch.float32)
+
+        # 5) 在 GPU 上做熵模型量化 (训练时的 Straight-Through Estimator)
+        _, z_likelihoods = self.entropy_bottleneck(z_gpu)
+        z_offset = self.entropy_bottleneck._get_medians()
+        z_tmp = z_gpu - z_offset
+        z_hat_gpu = ste_round(z_tmp) + z_offset
+
+        # 6) 在 GPU 上用 h_z_s1, h_z_s2 解码先验信息
+        latent_scales_gpu = self.h_z_s1(z_hat_gpu)
+        latent_means_gpu = self.h_z_s2(z_hat_gpu)
+
+        # 7) 将 y_cpu 转到 GPU（上面 g_a 是 CPU 算的）
+        y_gpu = y_cpu.to('cuda', dtype=torch.float32)
+
+        # 8) 对 y 做切片 + 高斯条件建模 + 字典交叉注意力
+        y_slices_gpu = y_gpu.chunk(self.num_slices, dim=1)
         y_hat_slices = []
         y_likelihood = []
         mu_list = []
         scale_list = []
-        for slice_index, y_slice in enumerate(y_slices):
-            support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
-            query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
-            dict_info = self.dt_cross_attention[slice_index](query, dt)
-            support = torch.cat([query] + [dict_info], dim=1)
-            
+
+        b = x.shape[0]
+        # self.dt 也要在 GPU 上用
+        dt_gpu = self.dt.repeat(b, 1, 1).to('cuda', dtype=torch.float32)
+
+        for slice_index, y_slice in enumerate(y_slices_gpu):
+            support_slices = (
+                y_hat_slices if self.max_support_slices < 0
+                else y_hat_slices[:self.max_support_slices]
+            )
+            query = torch.cat([latent_scales_gpu, latent_means_gpu] + support_slices, dim=1)
+
+            dict_info = self.dt_cross_attention[slice_index](query, dt_gpu)
+            support = torch.cat([query, dict_info], dim=1)
+
             mu = self.cc_mean_transforms[slice_index](support)
-            mu = mu[:, :, :y_shape[0], :y_shape[1]]
-            mu_list.append(mu)
-            
             scale = self.cc_scale_transforms[slice_index](support)
+
+            # 截断到正确形状 (y_slice可能有特定h,w)
+            y_shape = y_slice.shape[2:]
+            mu = mu[:, :, :y_shape[0], :y_shape[1]]
             scale = scale[:, :, :y_shape[0], :y_shape[1]]
-            scale_list.append(scale)
-            
+
             _, y_slice_likelihood = self.gaussian_conditional(y_slice, scale, mu)
             y_likelihood.append(y_slice_likelihood)
-            y_hat_slice = ste_round(y_slice - mu) + mu
 
+            y_hat_slice = ste_round(y_slice - mu) + mu
             lrp_support = torch.cat([support, y_hat_slice], dim=1)
             lrp = self.lrp_transforms[slice_index](lrp_support)
             lrp = 0.5 * torch.tanh(lrp)
             y_hat_slice += lrp
-            y_hat_slices.append(y_hat_slice)
 
-        y_hat = torch.cat(y_hat_slices, dim=1)
-        means = torch.cat(mu_list, dim=1)
-        scales = torch.cat(scale_list, dim=1)
+            y_hat_slices.append(y_hat_slice)
+            mu_list.append(mu)
+            scale_list.append(scale)
+
+        y_hat_gpu = torch.cat(y_hat_slices, dim=1)
+        means_gpu = torch.cat(mu_list, dim=1)
+        scales_gpu = torch.cat(scale_list, dim=1)
         y_likelihoods = torch.cat(y_likelihood, dim=1)
-        
-        x_hat = self.g_s(y_hat)
+
+        # 9) 在 GPU 上用 g_s 完成最终解码
+        x_hat_gpu = self.g_s(y_hat_gpu)
+
         return {
-            "x_hat": x_hat,
+            "x_hat": x_hat_gpu,  # GPU float32
             "likelihoods": {"y": y_likelihoods, "z": z_likelihoods},
-            "para":{"means": means, "scales":scales, "y":y}
+            "para": {"means": means_gpu, "scales": scales_gpu, "y": y_gpu},
         }
 
     def load_state_dict(self, state_dict, strict=True):
@@ -694,22 +782,18 @@ class DCAE_1(CompressionModel):
         net.load_state_dict(state_dict)
         return net
 
-    def compress(self, x, device='cpu'):
-        device = torch.device(device)
-        x = x.to(device)
-
+    def compress(self, x):
         b = x.size(0)
-        dt = self.dt.to(device).repeat([b, 1, 1]) # initialize dictionary
-        y = self.g_a(x) # encoder, y: representation of the input image
+        dt = self.dt.repeat([b, 1, 1]) # initialize dictionary
+        y = self.g_a(x) # encoder
         y_shape = y.shape[2:]
 
         z = self.h_a(y) # side information
-        z_strings = self.entropy_bottleneck.compress(z) # bitstream for z_hat, the entroy_bottleneck first quantizes z to get z_hat, then compresses the quantized z
+        z_strings = self.entropy_bottleneck.compress(z)
         z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:]) # z is quantized into z_hat
-        z_hat = z_hat.to(device)
 
-        latent_scales = self.h_z_s1(z_hat)
-        latent_means = self.h_z_s2(z_hat) # F_z = [latent_scales, latent_means]
+        latent_scales = self.h_z_s1(z_hat) # used to estimate the representation y
+        latent_means = self.h_z_s2(z_hat)
 
         y_slices = y.chunk(self.num_slices, 1)
         y_hat_slices = []
@@ -727,14 +811,14 @@ class DCAE_1(CompressionModel):
 
         for slice_index, y_slice in enumerate(y_slices):
             support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices]) # y_{<i}_bar
-            query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1) # query=[F_z, y_{<i}_bar] = X_i in the paper
-            dict_info = self.dt_cross_attention[slice_index](query, dt) # F_{dict}: the output of the Dictionary-based Cross-Attention
-            support = torch.cat([query] + [dict_info], dim=1) 
+            query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
+            dict_info = self.dt_cross_attention[slice_index](query, dt)
+            support = torch.cat([query] + [dict_info], dim=1)
             mu = self.cc_mean_transforms[slice_index](support)
-            mu = mu[:, :, :y_shape[0], :y_shape[1]] # Estimated mean and scale for the current y-slice.
+            mu = mu[:, :, :y_shape[0], :y_shape[1]]
             
             scale = self.cc_scale_transforms[slice_index](support)
-            scale = scale[:, :, :y_shape[0], :y_shape[1]] # Estimated mean and scale for the current y-slice.
+            scale = scale[:, :, :y_shape[0], :y_shape[1]]
 
             index = self.gaussian_conditional.build_indexes(scale)
             y_q_slice = self.gaussian_conditional.quantize(y_slice, "symbols", mu)
@@ -746,7 +830,7 @@ class DCAE_1(CompressionModel):
 
             lrp_support = torch.cat([support, y_hat_slice], dim=1)
             lrp = self.lrp_transforms[slice_index](lrp_support)
-            lrp = 0.5 * torch.tanh(lrp) # r_i
+            lrp = 0.5 * torch.tanh(lrp)
             y_hat_slice += lrp
 
             y_hat_slices.append(y_hat_slice)
@@ -754,7 +838,7 @@ class DCAE_1(CompressionModel):
             y_means.append(mu)
 
         encoder.encode_with_indexes(symbols_list, indexes_list, cdf, cdf_lengths, offsets) # AE in the paper
-        y_string = encoder.flush() # encoded bitstream
+        y_string = encoder.flush()
         y_strings.append(y_string)
 
         return {"strings": [y_strings, z_strings], "shape": z.size()[-2:]}
@@ -779,19 +863,13 @@ class DCAE_1(CompressionModel):
         # Using the complementary error function maximizes numerical precision.
         return half * torch.erfc(const * inputs)
 
-    def decompress(self, strings, shape, device='cpu'):
-        device=torch.device(device)
-        self.to(device)
+    def decompress(self, strings, shape):
 
         z_hat = self.entropy_bottleneck.decompress(strings[1], shape)
-        z_hat = z_hat.to(device)
-
         latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat)
         b = z_hat.size(0)
         dt = self.dt.repeat([b, 1, 1])
-        dt = dt.to(device)    
-
         y_shape = [z_hat.shape[2] * 4, z_hat.shape[3] * 4]
 
         y_string = strings[0][0]
@@ -821,9 +899,6 @@ class DCAE_1(CompressionModel):
 
             rv = decoder.decode_stream(index.reshape(-1).tolist(), cdf, cdf_lengths, offsets)
             rv = torch.Tensor(rv).reshape(1, -1, y_shape[0], y_shape[1])
-            rv = rv.to(device)
-
-
             y_hat_slice = self.gaussian_conditional.dequantize(rv, mu)
 
             lrp_support = torch.cat([support, y_hat_slice], dim=1)

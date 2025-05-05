@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torchvision import transforms
 from models import (
-    DCAE    
+    DCAE_1    
 )
 import warnings
 import torch
@@ -76,6 +76,9 @@ def parse_args(argv):
     parser.add_argument("--checkpoint", type=str, default="./16.64checkpoint_best.pth.tar", help="Path to a checkpoint")
     parser.add_argument("--data", type=str, default="../datasets/dummy/valid", help="Path to dataset")
     parser.add_argument("--save_path", default=None, type=str, help="Path to save")
+    parser.add_argument("--device_encoder", default=None, type=str, help="Path to save")
+    parser.add_argument("--device_decoder", default=None, type=str, help="Path to save")
+
     parser.add_argument(
         "--real", action="store_true", default=True
     )
@@ -100,7 +103,7 @@ def main(argv):
     
     print("device been used:", device)
 
-    net = DCAE()
+    net = DCAE_1()
     net = net.to(device)
     net.eval()
     
@@ -140,7 +143,7 @@ def main(argv):
                 if args.cuda:
                     torch.cuda.synchronize()
                 s = time.time()
-                out_enc = net.compress(x_padded)
+                out_enc = net.compress(x_padded, device=args.device_encoder)
                 if args.cuda:
                     torch.cuda.synchronize()
                 e = time.time()
@@ -154,7 +157,7 @@ def main(argv):
                 if args.cuda:
                     torch.cuda.synchronize()
                 s = time.time()
-                out_dec = net.decompress(out_enc["strings"], out_enc["shape"])
+                out_dec = net.decompress(out_enc["strings"], out_enc["shape"], device=args.device_decoder)
                 if args.cuda:
                     torch.cuda.synchronize()
                 e = time.time()

@@ -508,9 +508,9 @@ class MutiScaleDictionaryCrossAttentionGLU(nn.Module):
         output = rearrange(output, 'b h w c -> b c h w', )
         return output
 
-class DCAE_1(CompressionModel):
-    def __init__(self, head_dim=[8, 16, 32, 32, 16, 8], drop_path_rate=0, N=192,  M=320, num_slices=5, max_support_slices=5, entropy_bottleneck_channels=192, **kwargs):
-        super().__init__(entropy_bottleneck_channels=entropy_bottleneck_channels, **kwargs) 
+class DCAE(CompressionModel):
+    def __init__(self, head_dim=[8, 16, 32, 32, 16, 8], drop_path_rate=0, N=192,  M=320, num_slices=5, max_support_slices=5, **kwargs):
+        super().__init__() 
         self.head_dim = head_dim
         self.window_size = 8
         self.num_slices = num_slices
@@ -694,19 +694,15 @@ class DCAE_1(CompressionModel):
         net.load_state_dict(state_dict)
         return net
 
-    def compress(self, x, device='cpu'):
-        device = torch.device(device)
-        x = x.to(device)
-
+    def compress(self, x):
         b = x.size(0)
-        dt = self.dt.to(device).repeat([b, 1, 1]) # initialize dictionary
+        dt = self.dt.repeat([b, 1, 1]) # initialize dictionary
         y = self.g_a(x) # encoder, y: representation of the input image
         y_shape = y.shape[2:]
 
         z = self.h_a(y) # side information
         z_strings = self.entropy_bottleneck.compress(z) # bitstream for z_hat, the entroy_bottleneck first quantizes z to get z_hat, then compresses the quantized z
         z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:]) # z is quantized into z_hat
-        z_hat = z_hat.to(device)
 
         latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat) # F_z = [latent_scales, latent_means]
@@ -779,19 +775,13 @@ class DCAE_1(CompressionModel):
         # Using the complementary error function maximizes numerical precision.
         return half * torch.erfc(const * inputs)
 
-    def decompress(self, strings, shape, device='cpu'):
-        device=torch.device(device)
-        self.to(device)
+    def decompress(self, strings, shape):
 
         z_hat = self.entropy_bottleneck.decompress(strings[1], shape)
-        z_hat = z_hat.to(device)
-
         latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat)
         b = z_hat.size(0)
         dt = self.dt.repeat([b, 1, 1])
-        dt = dt.to(device)    
-
         y_shape = [z_hat.shape[2] * 4, z_hat.shape[3] * 4]
 
         y_string = strings[0][0]
@@ -821,9 +811,6 @@ class DCAE_1(CompressionModel):
 
             rv = decoder.decode_stream(index.reshape(-1).tolist(), cdf, cdf_lengths, offsets)
             rv = torch.Tensor(rv).reshape(1, -1, y_shape[0], y_shape[1])
-            rv = rv.to(device)
-
-
             y_hat_slice = self.gaussian_conditional.dequantize(rv, mu)
 
             lrp_support = torch.cat([support, y_hat_slice], dim=1)
