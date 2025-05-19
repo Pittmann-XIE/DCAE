@@ -630,9 +630,9 @@ class DCAE(CompressionModel):
         _, z_likelihoods = self.entropy_bottleneck(z)
         z_offset = self.entropy_bottleneck._get_medians()
         z_tmp = z - z_offset
-        z_hat = ste_round(z_tmp) + z_offset # qutantized z
+        z_hat = ste_round(z_tmp) + z_offset # qutantized z, decoded z
         
-        latent_scales = self.h_z_s1(z_hat)
+        latent_scales = self.h_z_s1(z_hat) # F_z
         latent_means = self.h_z_s2(z_hat)
 
         y_slices = y.chunk(self.num_slices, 1)
@@ -702,11 +702,12 @@ class DCAE(CompressionModel):
         y_shape = y.shape[2:]
 
         z = self.h_a(y) # side information to capture the spatial dependency, h_a(): hyper-encoder, Hyperencoder transforms y → z
-        z_strings = self.entropy_bottleneck.compress(z) 
+        z_strings = self.entropy_bottleneck.compress(z) # trainable block
         z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:]) # quatntized z
+        torch.save(z_strings, "./output/debug/z_string_decompress.pt")
 
 
-        latent_scales = self.h_z_s1(z_hat)
+        latent_scales = self.h_z_s1(z_hat) 
         latent_means = self.h_z_s2(z_hat)
 
         y_slices = y.chunk(self.num_slices, 1) # y_i
@@ -753,6 +754,8 @@ class DCAE(CompressionModel):
 
         encoder.encode_with_indexes(symbols_list, indexes_list, cdf, cdf_lengths, offsets)
         y_string = encoder.flush()
+        # torch.save(y_string, "./output/debug/y_string.pt")
+        torch.save(z_strings[0], "./output/debug/z_strings.pt")
         y_strings.append(y_string)
 
         return {"strings": [y_strings, z_strings], "shape": z.size()[-2:], "debug": [y, z, x]}
@@ -856,7 +859,7 @@ class DCAE(CompressionModel):
     def decompress(self, strings, shape):
 
         z_hat = self.entropy_bottleneck.decompress(strings[1], shape)
-        latent_scales = self.h_z_s1(z_hat)
+        latent_scales = self.h_z_s1(z_hat) # F_z
         latent_means = self.h_z_s2(z_hat)
         b = z_hat.size(0)
         dt = self.dt.repeat([b, 1, 1])
@@ -889,7 +892,9 @@ class DCAE(CompressionModel):
 
             rv = decoder.decode_stream(index.reshape(-1).tolist(), cdf, cdf_lengths, offsets)
             rv = torch.Tensor(rv).reshape(1, -1, y_shape[0], y_shape[1])
+            torch.save(rv, "./output/debug/rv.pt")
             y_hat_slice = self.gaussian_conditional.dequantize(rv, mu)
+            # print(f"decompress: {y_hat_slice}")
 
             lrp_support = torch.cat([support, y_hat_slice], dim=1)
             lrp = self.lrp_transforms[slice_index](lrp_support)
@@ -899,7 +904,8 @@ class DCAE(CompressionModel):
             y_hat_slices.append(y_hat_slice)
 
         y_hat = torch.cat(y_hat_slices, dim=1)
+        # torch.save(y_hat, "./output/debug/y_hat.pt")
         x_hat = self.g_s(y_hat).clamp_(0, 1)
 
         return {"x_hat": x_hat}
-
+    

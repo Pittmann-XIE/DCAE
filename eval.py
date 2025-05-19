@@ -73,8 +73,8 @@ def parse_args(argv):
         type=float,
         help="gradient clipping max norm (default: %(default)s",
     )
-    parser.add_argument("--checkpoint", type=str, default="./16.64checkpoint_best.pth.tar", help="Path to a checkpoint")
-    parser.add_argument("--data", type=str, default="../datasets/dummy/valid", help="Path to dataset")
+    parser.add_argument("--checkpoint", type=str, default="./checkpoints/60.5checkpoint_best_30k_wi_dummy.pth.tar", help="Path to a checkpoint")
+    parser.add_argument("--data", type=str, default="../datasets/dummy/test", help="Path to dataset")
     parser.add_argument("--save_path", default=None, type=str, help="Path to save")
     parser.add_argument(
         "--real", action="store_true", default=True

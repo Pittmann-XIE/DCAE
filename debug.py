@@ -95,7 +95,7 @@ def parse_args(argv):
     parser.add_argument(
         "--M", type=int, default=320,
     )
-    parser.add_argument("--checkpoint", type=str, default="./60.5checkpoint_best.pth.tar", help="Path to a checkpoint")
+    parser.add_argument("--checkpoint", type=str, default="./checkpoints/60.5checkpoint_best_30k_wi_dummy.pth.tar", help="Path to a checkpoint")
     parser.add_argument("--save_path", type=str, default="./output/debug", help="Path to save")
     parser.add_argument("--data", type=str, default="../datasets/dummy/test", help="Path to dataset")
     parser.add_argument("--mode", type=str, default="compress", choices=['compress', "decompress"])

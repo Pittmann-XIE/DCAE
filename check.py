@@ -462,11 +462,15 @@
 # compare_strings(string_y_1, string_y_2)
 # compare_strings(string_z_1, string_z_2)
 
-import inspect
-from compressai.ans import BufferedRansEncoder
+# import inspect
+# from compressai.ans import BufferedRansEncoder
+# from compressai.entropy_models import GaussianConditional
 
-# This will print the source code if CompressAI is installed from source
-print(inspect.getsource(BufferedRansEncoder))
+# gauss = GaussianConditional(None)
+# cdf = gauss.quantized_cdf.tolist()
+
+# # This will print the source code if CompressAI is installed from source
+# print(cdf)
 
 # from compressai.ans import BufferedRansEncoder
 
@@ -482,3 +486,129 @@ print(inspect.getsource(BufferedRansEncoder))
 # for param_name, weights in state_dict.items():
 #     print(param_name, weights.dtype)
 #     break  # remove or adjust this break to view all parameters
+
+# check model structure
+from models import DCAE
+from torchsummary import summary
+import torch
+
+device_1 = "cuda"
+device_2 = "cpu"
+checkpoint_path = "./60.5checkpoint_best.pth.tar"
+
+# torch.set_default_dtype(torch.float64)
+
+net_1 = DCAE()
+net_1 = net_1.to(device_1)
+net_1.eval()
+dictory_1 = {}
+checkpoint_1 = torch.load(checkpoint_path, map_location=device_1)
+trainable_blocks = []
+for k, v in checkpoint_1["state_dict"].items():
+    k_parts = k.split(".")
+    k_name = k_parts[0] + "_" + k_parts[1]
+    if k_name not in trainable_blocks:
+        trainable_blocks.append(k_name)
+    dictory_1[k.replace("module.", "")] = v
+net_1.load_state_dict(dictory_1)
+
+
+summary(net_1.g_a, input_size=(3, 256,256), device="cuda")
+print(net_1.g_a)
+# print("trainable blocks: ", trainable_blocks)
+# print(net_1.dt)
+
+
+
+# net_2 = DCAE()
+# net_2 = net_2.to(device_2)
+# net_2.eval()
+# dictory_2 = {}
+# checkpoint_2 = torch.load(checkpoint_path, map_location=device_2)
+# trainable_blocks = []
+# for k, v in checkpoint_2["state_dict"].items():
+#     k_parts = k.split(".")
+#     k_name = k_parts[0] + "_" + k_parts[1]
+#     if k_name not in trainable_blocks:
+#         trainable_blocks.append(k_name)
+#     dictory_2[k.replace("module.", "")] = v
+# net_2.load_state_dict(dictory_2)
+
+
+# checkpoint = torch.load(checkpoint_1, map_location=device_1)
+# trainable_blocks = []
+# for k, v in checkpoint["state_dict"].items():
+#     k_parts = k.split(".")
+#     k_name = k_parts[0] + "_" + k_parts[1]
+#     if k_name not in trainable_blocks:
+#         trainable_blocks.append(k_name)
+#     dictory_1[k.replace("module.", "")] = v
+# net.load_state_dict(dictory)
+
+
+
+# # compare variables under different conditions
+# import torch
+
+# def compare(tensor1, tensor2):
+#     if isinstance(tensor1, bytes):
+#         tensor1 = list(tensor1)
+#         tensor1 = torch.tensor(tensor1, dtype=torch.float32)
+#     if isinstance(tensor2, bytes):
+#         tensor2 = list(tensor2)
+#         tensor2 = torch.tensor(tensor2, dtype=torch.float32)
+#     if tensor1.device != tensor2.device:
+#         tensor1=tensor1.to("cpu")
+#         tensor2=tensor2.to("cpu")
+#     are_identical = torch.equal(tensor1, tensor2)
+#     if are_identical:
+#         print("The tensors are identical. \n")
+#     else:
+#         print("The tensors are not identical.")
+#         # Calculate absolute difference
+#         absolute_difference = torch.abs(tensor1 - tensor2)/tensor2
+#         print("Relative difference:", torch.mean(torch.abs(absolute_difference)))
+#         # Calculate mean squared error
+#         mse = torch.mean((tensor1 - tensor2) ** 2)
+#         print("Mean squared error:", mse, "\n")
+
+# z_cuda_32 = torch.load("./output/debug/z_cuda_32.pt")
+# z_cpu_32 = torch.load("./output/debug/z_cpu_32.pt") # diff
+
+# z_hat_cuda_32 = torch.load("./output/debug/z_hat_cuda_32.pt")
+# z_hat_cpu_32 = torch.load("./output/debug/z_hat_cpu_32.pt") # same
+
+# y_string_cpu_32 = torch.load("./output/debug/y_string_cpu_32.pt")
+# y_string_cuda_32 = torch.load("./output/debug/y_string_cuda_32.pt") # same
+
+# z_strings_cpu_32 = torch.load("./output/debug/z_strings_cpu_32.pt") # diff
+# z_strings_cuda_32 = torch.load("./output/debug/z_strings_cuda_32.pt")
+
+# y_hat_cpu_32 = torch.load("./output/debug/y_hat_cpu_32.pt") # diff
+# y_hat_cuda_32 = torch.load("./output/debug/y_hat_cuda_32.pt")
+
+# rv_cpu_32 = torch.load("./output/debug/rv_cpu_32.pt")
+# rv_cuda_32 = torch.load("./output/debug/rv_cuda_32.pt")
+
+# compare(z_cuda_32, z_cpu_32)
+
+# compare(z_hat_cuda_32, z_hat_cpu_32)
+
+# compare(y_string_cpu_32, y_string_cuda_32)
+
+# compare(z_strings_cpu_32, z_strings_cuda_32)
+
+# compare(y_hat_cpu_32, y_hat_cuda_32)
+
+# compare(rv_cpu_32, rv_cuda_32)
+
+
+## check the last epoch of the checkpoints
+# import torch
+# from models import DCAE_3
+# import torch.optim as optim
+
+# device = "cuda"
+# print("Loading", "./60.5checkpoint_best.pth.tar")
+# checkpoint = torch.load("./60.5checkpoint_best.pth.tar", map_location=device)
+# print(f'the last epoch of this checkpoint is: {checkpoint["epoch"]}')

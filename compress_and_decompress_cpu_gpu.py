@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from models import (
-    DCAE_3,
+    DCAE_4,
 )
 import warnings
 import torch
@@ -22,6 +22,7 @@ import struct
 warnings.filterwarnings("ignore")
 
 print(torch.cuda.is_available())
+torch.set_default_dtype(torch.float32)
 
 def compute_psnr(a, b):
     mse = torch.mean((a - b)**2).item()
@@ -169,11 +170,19 @@ def main(argv):
     print(f"using: {device}")
     
     base_path = args.save_path
-    net = DCAE_3()
+    net = DCAE_4()
     net = net.to(device)
     net.eval()
     
     dictory = {}
+
+    encode_time = 0.0
+    decode_time = 0.0
+    PSNR = 0.0
+    MS_SSIM = 0.0
+    size_in_Byte = 0.0
+    count = 0.0
+
     if args.checkpoint:  
         print("Loading", args.checkpoint)
         checkpoint = torch.load(args.checkpoint, map_location=device)
@@ -184,6 +193,7 @@ def main(argv):
     net.update(force=True)
     if args.mode == "compress":
         for img_name in img_list:    
+            count += 1
             with torch.no_grad():
                 img_path = os.path.join(path, img_name)
                 img = transforms.ToTensor()(Image.open(img_path).convert('RGB')).to(device)
@@ -191,21 +201,62 @@ def main(argv):
                 x_size = x.size()[-2:]
                 x_padded, padding = pad(x, p)
                 x_padded.to(device)
+                s = time.time()
                 out_enc = net.compress(x_padded)
+                e = time.time()
+                encode_time += (e - s)
+                # print(f"the shape of y: {out_enc.shape}")
                 # print(f"string's type: {out_enc['strings'][0][0].dtype}")
                 # print(f"string's size: {out_enc['strings'][0][0].size()}")
-                save_bin(out_enc["strings"], x_size, img_name, base_path)
-
+                # save_bin(out_enc["strings"], x_size, img_name, base_path)
+                file_name, ext = os.path.splitext(img_name)
+                torch.save(out_enc, os.path.join(base_path,"bin", file_name+".pt"))
+        encode_time = encode_time /count
+        print(f'average_encode_time: {encode_time:.6f} s')
     elif args.mode == "decompress":
-        for img_name in img_list:  
+        path_img = "../datasets/dummy/test"
+        img_list = []
+        for file in os.listdir(path_img):
+            img_list.append(file)
+        for img_name in img_list:
+            count += 1
+            img_path = os.path.join(path_img, img_name)
+            img = transforms.ToTensor()(Image.open(img_path).convert('RGB')).to(device)
+            x = img.unsqueeze(0)
+            x_padded, padding = pad(x, p)
+            x_padded.to(device)  
             with torch.no_grad():
-                bin_path = os.path.join(path, img_name)
-                string, shape, padding = read_bin(bin_path)
-                out_dec = net.decompress(string, shape)
-                out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
+                file_name, ext = os.path.splitext(img_name)
+                bin_path = os.path.join(path, file_name+".pt")
+                # string, shape, padding = read_bin(bin_path)
+
+                y = torch.load(bin_path)
+                # Calculate the size in bits
+                size_in_Byte += y.numel() * y.element_size() * 4 #torch.float32
+
+                if args.cuda:
+                    torch.cuda.synchronize()
+                s = time.time()
+                out_dec = net.decompress(y)
+                if args.cuda:
+                    torch.cuda.synchronize()
+                e = time.time()
+                decode_time += (e - s)
+                PSNR += compute_psnr(x, out_dec["x_hat"])
+                MS_SSIM += compute_msssim(x, out_dec["x_hat"])
+                # out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
                 out_dec["x_hat"] = out_dec["x_hat"].clamp(0, 1)
                 to_save_img = out_dec["x_hat"]
                 save_png_image(to_save_img, img_name, base_path)
+        PSNR = PSNR / count
+        MS_SSIM = MS_SSIM / count       
+        decode_time = decode_time /count
+        size_in_Byte = size_in_Byte/count
+        print(f'average_decode_time: {decode_time:.6f} s')
+        print(f'average_PSNR: {PSNR:.2f} dB')
+        print(f'average_MS-SSIM: {MS_SSIM:.4f}')
+        print(f'average compressed size: {size_in_Byte:.3f} kB')
+
 
 if __name__ == "__main__":
     print(torch.cuda.is_available())
