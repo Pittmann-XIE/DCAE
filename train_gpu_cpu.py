@@ -172,6 +172,7 @@ def train_one_epoch(
     for i, d in enumerate(train_dataloader):
 
         d = d.to(device)
+        print(f'input shape: {d.shape}, device: {d.device}')
         optimizer.zero_grad()
         aux_optimizer.zero_grad()
         out_net = model(d)

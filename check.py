@@ -488,33 +488,33 @@
 #     break  # remove or adjust this break to view all parameters
 
 # check model structure
-from models import DCAE
-from torchsummary import summary
-import torch
+# from models import DCAE
+# from torchsummary import summary
+# import torch
 
-device_1 = "cuda"
-device_2 = "cpu"
-checkpoint_path = "./60.5checkpoint_best.pth.tar"
+# device_1 = "cuda"
+# device_2 = "cpu"
+# checkpoint_path = "./60.5checkpoint_best.pth.tar"
 
-# torch.set_default_dtype(torch.float64)
+# # torch.set_default_dtype(torch.float64)
 
-net_1 = DCAE()
-net_1 = net_1.to(device_1)
-net_1.eval()
-dictory_1 = {}
-checkpoint_1 = torch.load(checkpoint_path, map_location=device_1)
-trainable_blocks = []
-for k, v in checkpoint_1["state_dict"].items():
-    k_parts = k.split(".")
-    k_name = k_parts[0] + "_" + k_parts[1]
-    if k_name not in trainable_blocks:
-        trainable_blocks.append(k_name)
-    dictory_1[k.replace("module.", "")] = v
-net_1.load_state_dict(dictory_1)
+# net_1 = DCAE()
+# net_1 = net_1.to(device_1)
+# net_1.eval()
+# dictory_1 = {}
+# checkpoint_1 = torch.load(checkpoint_path, map_location=device_1)
+# trainable_blocks = []
+# for k, v in checkpoint_1["state_dict"].items():
+#     k_parts = k.split(".")
+#     k_name = k_parts[0] + "_" + k_parts[1]
+#     if k_name not in trainable_blocks:
+#         trainable_blocks.append(k_name)
+#     dictory_1[k.replace("module.", "")] = v
+# net_1.load_state_dict(dictory_1)
 
 
-summary(net_1.g_a, input_size=(3, 256,256), device="cuda")
-print(net_1.g_a)
+# summary(net_1.g_a, input_size=(3, 256,256), device="cuda")
+# print(net_1.g_a)
 # print("trainable blocks: ", trainable_blocks)
 # print(net_1.dt)
 
@@ -612,3 +612,69 @@ print(net_1.g_a)
 # print("Loading", "./60.5checkpoint_best.pth.tar")
 # checkpoint = torch.load("./60.5checkpoint_best.pth.tar", map_location=device)
 # print(f'the last epoch of this checkpoint is: {checkpoint["epoch"]}')
+
+
+## file sizes
+
+import os
+
+# folder_path = "../datasets/dummy/all"  # Replace with your folder path
+folder_path = "./output/cpu_gpu/"  # Replace with your folder path
+
+
+png_files = [f for f in os.listdir(folder_path) if f.endswith('.png')]
+total_size = 0
+
+for png_file in png_files:
+    total_size += os.path.getsize(os.path.join(folder_path, png_file))
+
+if png_files:
+    average_size_kb = (total_size / len(png_files)) / 1024
+    print(f"Average file size: {average_size_kb:.2f} kB")
+else:
+    print("No PNG files found in the specified folder.")
+
+
+import os
+import torch
+
+folder_path = "./output/cpu_gpu/bin"  # Replace with your folder path
+
+pt_files = [f for f in os.listdir(folder_path) if f.endswith('.pt')]
+total_size = 0
+
+for pt_file in pt_files:
+    total_size += os.path.getsize(os.path.join(folder_path, pt_file))
+
+if pt_files:
+    average_size_bytes = total_size / len(pt_files)
+    # Convert to kilobytes if desired
+    average_size_kb = average_size_bytes / 1024
+    print(f"Average file size: {average_size_kb:.2f} kB")  # or use bytes
+else:
+    print("No .pt files found in the specified folder.")
+
+for pt_file in pt_files:
+    print(pt_file)
+    y=torch.load(os.path.join("./output/cpu_gpu/bin",pt_file))
+    print(y.shape, y.dtype)
+    break
+
+
+# import os
+# import torch
+
+# folder_path = "./output/cpu_gpu/bin"  # Replace with your folder path
+# pt_files = [f for f in os.listdir(folder_path) if f.endswith(".pt")]
+
+# for pt_file in pt_files:
+#     file_path = os.path.join(folder_path, pt_file)
+#     # Load the float32 tensor
+#     float_tensor = torch.load(file_path)
+
+#     # Convert to int8
+#     int8_tensor = float_tensor.to(torch.int8)
+
+#     # Save the int8 tensor
+#     torch.save(int8_tensor, file_path)
+#     print(f"Saved int8 tensor to {file_path}")

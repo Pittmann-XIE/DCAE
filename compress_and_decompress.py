@@ -191,6 +191,7 @@ def main(argv):
                 x_size = x.size()[-2:]
                 x_padded, padding = pad(x, p)
                 x_padded.to(device)
+                print(f'x_padded size: {x_padded.size()}')
                 out_enc = net.compress(x_padded)
                 # print(f"string's type: {out_enc['strings'][0][0].dtype}")
                 # print(f"string's size: {out_enc['strings'][0][0].size()}")

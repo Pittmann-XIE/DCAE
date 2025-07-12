@@ -201,6 +201,7 @@ def main(argv):
                 x_size = x.size()[-2:]
                 x_padded, padding = pad(x, p)
                 x_padded.to(device)
+                print(f"input's shape is {x_padded.shape}")
                 s = time.time()
                 out_enc = net.compress(x_padded)
                 e = time.time()
@@ -214,7 +215,7 @@ def main(argv):
         encode_time = encode_time /count
         print(f'average_encode_time: {encode_time:.6f} s')
     elif args.mode == "decompress":
-        path_img = "../datasets/dummy/test"
+        path_img = "../datasets/dummy/all"
         img_list = []
         for file in os.listdir(path_img):
             img_list.append(file)
@@ -231,8 +232,7 @@ def main(argv):
                 # string, shape, padding = read_bin(bin_path)
 
                 y = torch.load(bin_path)
-                # Calculate the size in bits
-                size_in_Byte += y.numel() * y.element_size() * 4 #torch.float32
+                y = y.to(torch.float32)
 
                 if args.cuda:
                     torch.cuda.synchronize()
@@ -251,11 +251,9 @@ def main(argv):
         PSNR = PSNR / count
         MS_SSIM = MS_SSIM / count       
         decode_time = decode_time /count
-        size_in_Byte = size_in_Byte/count
         print(f'average_decode_time: {decode_time:.6f} s')
         print(f'average_PSNR: {PSNR:.2f} dB')
         print(f'average_MS-SSIM: {MS_SSIM:.4f}')
-        print(f'average compressed size: {size_in_Byte:.3f} kB')
 
 
 if __name__ == "__main__":
