@@ -4,5 +4,12 @@
 /16.64checkpoint_best.pth.tar
 /60.5checkpoint_best.pth.tar
 /checkpoints/*
+/dataset
+/evaluation_results
+*.pyc
+*.tar
+*.log
+*.csv
+/tarin
 
 

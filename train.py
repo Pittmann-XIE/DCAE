@@ -32,8 +32,6 @@ torch.set_num_threads(8)
 torch.backends.cudnn.deterministic=True
 torch.backends.cudnn.benchmark=False
 
-torch.set_default_dtype(torch.float64)
-
 def test_compute_psnr(a, b):
     b = b.to(a.device)
     mse = torch.mean((a - b)**2).item()
@@ -298,7 +296,7 @@ def parse_args(argv):
 
     parser.add_argument("--local-rank", default=os.getenv('LOCAL_RANK', -1), type=int)
     parser.add_argument(
-        "-d", "--dataset", type=str, required=True, help="Training dataset"
+        "-d", "--dataset", type=str, default='./dataset', help="Training dataset"
     )
     parser.add_argument(
         "-e",
@@ -365,9 +363,9 @@ def parse_args(argv):
         type=float,
         help="gradient clipping max norm (default: %(default)s",
     )
-    parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint")
+    parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint", default='60.5checkpoint_best.pth.tar')
     parser.add_argument("--type", type=str, default='mse', help="loss type", choices=['mse', "ms-ssim", "l1"])
-    parser.add_argument("--save_path", type=str, help="save_path")
+    parser.add_argument("--save_path", type=str, help="save_path", default='./train')
     parser.add_argument(
         "--N", type=int, default=128,
     )
@@ -409,8 +407,8 @@ def main(argv):
         [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
     )
 
-    train_dataset = ImageFolder(args.dataset, split="train_30k", transform=train_transforms)
-    test_dataset = ImageFolder(args.dataset, split="train_30k", transform=test_transforms)
+    train_dataset = ImageFolder(args.dataset, split="train", transform=train_transforms)
+    test_dataset = ImageFolder(args.dataset, split="test", transform=test_transforms)
 
     if args.local_rank != -1:
         torch.cuda.set_device(args.local_rank)

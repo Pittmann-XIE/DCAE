@@ -508,7 +508,7 @@ class MutiScaleDictionaryCrossAttentionGLU(nn.Module):
         output = rearrange(output, 'b h w c -> b c h w', )
         return output
 
-class DCAE(CompressionModel):
+class DCAE_6(CompressionModel):
     def __init__(self, head_dim=[8, 16, 32, 32, 16, 8], drop_path_rate=0, N=192,  M=320, num_slices=5, max_support_slices=5, **kwargs):
         super().__init__() 
         self.head_dim = head_dim
@@ -528,9 +528,9 @@ class DCAE(CompressionModel):
         # block_num = [0, 0, 4]
         block_num = [1, 2, 12]
 
-        dict_num = 128 # number of dictionary entries
-        dict_head_num = 20 
-        dict_dim = 32 * dict_head_num # number of feature dimensions, each head has 32 dimensions
+        dict_num = 128
+        dict_head_num = 20
+        dict_dim = 32 * dict_head_num
         self.dt = nn.Parameter(torch.randn([dict_num, dict_dim]), requires_grad=True)
         
         prior_dim = M
@@ -623,16 +623,16 @@ class DCAE(CompressionModel):
     def forward(self, x):
         b = x.size(0)
         dt = self.dt.repeat([b, 1, 1])
-        y = self.g_a(x) 
+        y = self.g_a(x)
         y_shape = y.shape[2:]
         
         z = self.h_a(y)
         _, z_likelihoods = self.entropy_bottleneck(z)
         z_offset = self.entropy_bottleneck._get_medians()
         z_tmp = z - z_offset
-        z_hat = ste_round(z_tmp) + z_offset # qutantized z, decoded z
+        z_hat = ste_round(z_tmp) + z_offset
         
-        latent_scales = self.h_z_s1(z_hat) # F_z
+        latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat)
 
         y_slices = y.chunk(self.num_slices, 1)
@@ -640,6 +640,7 @@ class DCAE(CompressionModel):
         y_likelihood = []
         mu_list = []
         scale_list = []
+        
         for slice_index, y_slice in enumerate(y_slices):
             support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
             query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
@@ -696,19 +697,18 @@ class DCAE(CompressionModel):
 
     def compress(self, x):
         b = x.size(0)
-        dt = self.dt.repeat([b, 1, 1]) # initialize dictionary
-        y = self.g_a(x) # encoder, y: representation of the input image
-        
+        dt = self.dt.repeat([b, 1, 1])
+        y = self.g_a(x)
         y_shape = y.shape[2:]
 
-        z = self.h_a(y) # side information
-        z_strings = self.entropy_bottleneck.compress(z) # bitstream for z_hat, the entroy_bottleneck first quantizes z to get z_hat, then compresses the quantized z
-        z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:]) # z is quantized into z_hat
+        z = self.h_a(y)
+        z_strings = self.entropy_bottleneck.compress(z)
+        z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:])
 
         latent_scales = self.h_z_s1(z_hat)
-        latent_means = self.h_z_s2(z_hat) # F_z = [latent_scales, latent_means]
+        latent_means = self.h_z_s2(z_hat)
 
-        y_slices = y.chunk(self.num_slices, 1) # y_i, chunked along the first dimension. y is of the shape (batch, channel, height, width), so split along channel
+        y_slices = y.chunk(self.num_slices, 1)
         y_hat_slices = []
         y_scales = []
         y_means = []
@@ -722,18 +722,23 @@ class DCAE(CompressionModel):
         indexes_list = []
         y_strings = []
 
+        all_indexes = []
+
         for slice_index, y_slice in enumerate(y_slices):
-            support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices]) # y_{<i}_bar
-            query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1) # X_i=[F_z, y_{<i}_bar] = X_i in the paper,
-            dict_info = self.dt_cross_attention[slice_index](query, dt) # F_{dict}: the output of the Dictionary-based Cross-Attention; self.dt_cross_attention: DCA
-            support = torch.cat([query] + [dict_info], dim=1) 
-            mu = self.cc_mean_transforms[slice_index](support) # self.cc_mean_transforms: f_E()
-            mu = mu[:, :, :y_shape[0], :y_shape[1]] # Estimated mean and scale for the current y-slice.
+            support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
+            query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
+            dict_info = self.dt_cross_attention[slice_index](query, dt)
+            support = torch.cat([query] + [dict_info], dim=1)
+            mu = self.cc_mean_transforms[slice_index](support)
+            mu = mu[:, :, :y_shape[0], :y_shape[1]]
             
-            scale = self.cc_scale_transforms[slice_index](support) # self.cc_scale_transforms: f_E()
-            scale = scale[:, :, :y_shape[0], :y_shape[1]] # Estimated mean and scale for the current y-slice.
+            scale = self.cc_scale_transforms[slice_index](support)
+            scale = scale[:, :, :y_shape[0], :y_shape[1]]
 
             index = self.gaussian_conditional.build_indexes(scale)
+
+            all_indexes.append(index.reshape(-1).int().tolist())
+
             y_q_slice = self.gaussian_conditional.quantize(y_slice, "symbols", mu)
             y_hat_slice = y_q_slice + mu
 
@@ -743,19 +748,33 @@ class DCAE(CompressionModel):
 
             lrp_support = torch.cat([support, y_hat_slice], dim=1)
             lrp = self.lrp_transforms[slice_index](lrp_support)
-            lrp = 0.5 * torch.tanh(lrp) # r_i
+            lrp = 0.5 * torch.tanh(lrp)
             y_hat_slice += lrp
 
             y_hat_slices.append(y_hat_slice)
-            y_scales.append(scale) # useless
-            y_means.append(mu) #useless
+            y_scales.append(scale)
+            y_means.append(mu)
 
-
-        encoder.encode_with_indexes(symbols_list, indexes_list, cdf, cdf_lengths, offsets) # AE in the paper
-        y_string = encoder.flush() # encoded bitstream
+        encoder.encode_with_indexes(symbols_list, indexes_list, cdf, cdf_lengths, offsets)
+        y_string = encoder.flush()
         y_strings.append(y_string)
 
-        return {"strings": [y_strings, z_strings], "shape": z.size()[-2:]}
+        # return {"strings": [y_strings, z_strings], "shape": z.size()[-2:]}
+        print("total symbols:", len(symbols_list))
+        print("total indexes:", len(indexes_list))
+        encoder_indexes = index.reshape(-1).int().tolist() # type: ignore
+        print("first 20 encoder indexes:", encoder_indexes[:20])
+        return {
+        "strings": [y_strings, z_strings],
+        "shape": z.size()[-2:],
+        "tables": {
+            "cdf": self.gaussian_conditional.quantized_cdf.tolist(),
+            "cdf_lengths": self.gaussian_conditional.cdf_length.reshape(-1).int().tolist(),
+            "offsets": self.gaussian_conditional.offset.reshape(-1).int().tolist()},
+        "indexes": all_indexes,   # <--- added
+
+        
+    }
 
     def _likelihood(self, inputs, scales, means=None):
         half = float(0.5)
@@ -777,54 +796,75 @@ class DCAE(CompressionModel):
         # Using the complementary error function maximizes numerical precision.
         return half * torch.erfc(const * inputs)
 
-    def decompress(self, strings, shape):
-        # strings = [y_string, z_string]    
+    def decompress(self, strings, shape, tables, indexes):
+        # get current device of model
+        device = next(self.parameters()).device  
 
-        z_hat = self.entropy_bottleneck.decompress(strings[1], shape)
-        latent_scales = self.h_z_s1(z_hat) #F_z
-        latent_means = self.h_z_s2(z_hat)
+        # EntropyBottleneck.decompress may return CPU tensor → move it
+        z_hat = self.entropy_bottleneck.decompress(strings[1], shape).to(device)
+
+        latent_scales = self.h_z_s1(z_hat)
+        latent_means  = self.h_z_s2(z_hat)
+
         b = z_hat.size(0)
-        dt = self.dt.repeat([b, 1, 1])
+        dt = self.dt.repeat([b, 1, 1]).to(device)
         y_shape = [z_hat.shape[2] * 4, z_hat.shape[3] * 4]
 
         y_string = strings[0][0]
-
         y_hat_slices = []
-        cdf = self.gaussian_conditional.quantized_cdf.tolist()
-        cdf_lengths = self.gaussian_conditional.cdf_length.reshape(-1).int().tolist()
-        offsets = self.gaussian_conditional.offset.reshape(-1).int().tolist()
+
+        # get entropy model tables as CPU lists (device agnostic)
+        # cdf = self.gaussian_conditional.quantized_cdf.tolist()
+        # cdf_lengths = self.gaussian_conditional.cdf_length.reshape(-1).int().tolist()
+        # offsets = self.gaussian_conditional.offset.reshape(-1).int().tolist()
+        cdf = tables["cdf"]
+        cdf_lengths = tables["cdf_lengths"]
+        offsets = tables["offsets"]
 
         decoder = RansDecoder()
         decoder.set_stream(y_string)
 
         for slice_index in range(self.num_slices):
-            support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
-            query = torch.cat([latent_scales] + [latent_means] + support_slices, dim=1)
+            support_slices = (
+                y_hat_slices if self.max_support_slices < 0 
+                else y_hat_slices[:self.max_support_slices]
+            )
+
+            # make sure query is on the correct device
+            query = torch.cat([latent_scales, latent_means] + support_slices, dim=1).to(device)
             dict_info = self.dt_cross_attention[slice_index](query, dt)
-            support = torch.cat([query] + [dict_info], dim=1)
-            
-            mu = self.cc_mean_transforms[slice_index](support)
-            mu = mu[:, :, :y_shape[0], :y_shape[1]]
-            
-            scale = self.cc_scale_transforms[slice_index](support)
-            scale = scale[:, :, :y_shape[0], :y_shape[1]]
+            support = torch.cat([query, dict_info], dim=1)
 
+            mu = self.cc_mean_transforms[slice_index](support)[:, :, :y_shape[0], :y_shape[1]]
+            scale = self.cc_scale_transforms[slice_index](support)[:, :, :y_shape[0], :y_shape[1]]
 
-            index = self.gaussian_conditional.build_indexes(scale)
+            # index = self.gaussian_conditional.build_indexes(scale)
+            index_for_slice = indexes[slice_index]   # directly from encoder
 
-            rv = decoder.decode_stream(index.reshape(-1).tolist(), cdf, cdf_lengths, offsets)
-            rv = torch.Tensor(rv).reshape(1, -1, y_shape[0], y_shape[1])
+            # decode from RANS stream
+            rv = decoder.decode_stream(
+                index_for_slice, cdf, cdf_lengths, offsets
+            )
+
+            # build tensor on the correct device + dtype
+            rv = torch.tensor(rv, device=device, dtype=mu.dtype).reshape(
+                b, -1, y_shape[0], y_shape[1]
+            )
+
+            # dequantize using mu
             y_hat_slice = self.gaussian_conditional.dequantize(rv, mu)
 
+            # add local refinement
             lrp_support = torch.cat([support, y_hat_slice], dim=1)
-            lrp = self.lrp_transforms[slice_index](lrp_support)
-            lrp = 0.5 * torch.tanh(lrp)
-            y_hat_slice += lrp
+            lrp = 0.5 * torch.tanh(self.lrp_transforms[slice_index](lrp_support))
+            y_hat_slice = y_hat_slice + lrp
 
             y_hat_slices.append(y_hat_slice)
-        
 
         y_hat = torch.cat(y_hat_slices, dim=1)
-        x_hat = self.g_s(y_hat).clamp_(0, 1)
+        x_hat = self.g_s(y_hat).clamp_(0.0, 1.0)
 
+        # idx_dec = index.reshape(-1).int().tolist() # type: ignore
+        print("first 20 decoder indexes:", index_for_slice[:20])
         return {"x_hat": x_hat}
+
