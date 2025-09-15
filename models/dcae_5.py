@@ -1,4 +1,4 @@
-## origin DCAE 5
+# ## origin DCAE 5
 
 # from compressai.entropy_models import EntropyBottleneck, GaussianConditional
 # from compressai.ans import BufferedRansEncoder, RansDecoder
@@ -1628,6 +1628,7 @@ class CompressModel(CompressionModel):
     def forward(self, x):
         """Training forward pass"""
         b = x.size(0)
+        print(f'compress device: {x.device}')
         dt = self.dt.repeat([b, 1, 1])
         y = self.g_a(x) 
         y_shape = y.shape[2:]
@@ -1864,11 +1865,14 @@ class DecompressModel(CompressionModel):
 
     def forward(self, y_hat, z_hat):
         """Training forward pass for decompression"""
+        
+
         b = z_hat.size(0)
         dt = self.dt.repeat([b, 1, 1])
         
         # FIX: Ensure dt is on the same device as the model parameters
         dt = dt.to(next(self.parameters()).device)
+        print(f'decompress device: {dt.device}')
         
         latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat)

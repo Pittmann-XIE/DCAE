@@ -301,7 +301,7 @@ def parse_args(argv):
     parser.add_argument(
         "-e",
         "--epochs",
-        default=50,
+        default=100,
         type=int,
         help="Number of epochs (default: %(default)s)",
     )
@@ -323,7 +323,7 @@ def parse_args(argv):
         "--lambda",
         dest="lmbda",
         type=float,
-        default=3,
+        default=60.5,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(

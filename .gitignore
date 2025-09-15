@@ -10,6 +10,9 @@
 *.tar
 *.log
 *.csv
-/tarin
+/train
+/train_compress_only
+/train_compress_only_*
+/wandb
 
 

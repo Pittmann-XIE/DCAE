@@ -512,7 +512,7 @@
 # def main():
 #     parser = argparse.ArgumentParser(description="Evaluate DCAE_5 model performance")
     
-#     parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/try_2/60.5checkpoint_latest.pth.tar',
+#     parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/60.5checkpoint_latest.pth.tar',
 #                         help="Path to checkpoint file (e.g., 60.5checkpoint_best.pth.tar)")
 #     parser.add_argument("--dataset", type=str, default='dataset',
 #                         help="Path to test dataset")
@@ -761,7 +761,7 @@ def evaluate_dataset(evaluator, test_dataloader, output_dir, save_images=True, s
             # Save compressed data if requested (only strings and shape)
             if save_compressed:
                 compressed_filename = f'image_{image_idx:04d}.pkl'
-                compressed_path = os.path.join(output_dir, 'messaged', compressed_filename)
+                compressed_path = os.path.join(output_dir, 'latent', compressed_filename)
                 
                 # Save only what's needed for decompression
                 compressed_data = {
@@ -811,7 +811,7 @@ def evaluate_dataset(evaluator, test_dataloader, output_dir, save_images=True, s
         f.write(f"Average BPP: {avg_bpp:.6f}\n")
         f.write(f"Total evaluation time: {time.time() - start_time:.2f} seconds\n")
         if save_compressed:
-            f.write(f"Compressed data saved to: {os.path.join(output_dir, 'messaged')}\n")
+            f.write(f"Compressed data saved to: {os.path.join(output_dir, 'latent')}\n")
     
     print(f"\nEvaluation Complete!")
     print(f"==================")
@@ -821,7 +821,7 @@ def evaluate_dataset(evaluator, test_dataloader, output_dir, save_images=True, s
     print(f"Average BPP: {avg_bpp:.6f}")
     print(f"Results saved to: {output_dir}")
     if save_compressed:
-        print(f"Compressed data saved to: {os.path.join(output_dir, 'messaged')}")
+        print(f"Compressed data saved to: {os.path.join(output_dir, 'latent')}")
     
     return {
         'avg_psnr': avg_psnr,
@@ -833,7 +833,7 @@ def evaluate_dataset(evaluator, test_dataloader, output_dir, save_images=True, s
 def main():
     parser = argparse.ArgumentParser(description="Evaluate DCAE_5 model performance")
     
-    parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/try_2/60.5checkpoint_latest.pth.tar',
+    parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/try_3/60.5/checkpoint_best.pth.tar',
                         help="Path to checkpoint file (e.g., 60.5checkpoint_best.pth.tar)")
     parser.add_argument("--dataset", type=str, default='dataset',
                         help="Path to test dataset")
