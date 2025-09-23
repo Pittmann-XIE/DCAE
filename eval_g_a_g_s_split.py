@@ -527,11 +527,25 @@ def load_images_batch(img_paths, device):
     images = []
     for img_path in img_paths:
         img = Image.open(img_path).convert('RGB')
-        img = transforms.Resize((424, 242))(img)  # Resize to 424x242
+        img = transforms.Resize((256,256))(img)  # Resize to 424x242
         img = transforms.ToTensor()(img)
         images.append(img)
     
     return torch.stack(images).to(device)
+
+
+def get_model_size_mb(model):
+    param_size = 0
+    buffer_size = 0
+    
+    for param in model.parameters():
+        param_size += param.nelement() * param.element_size()
+    
+    for buffer in model.buffers():
+        buffer_size += buffer.nelement() * buffer.element_size()
+    
+    size_all_mb = (param_size + buffer_size) / 1024**2
+    return size_all_mb
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description="SimpleAutoencoder split evaluation script (g_a on CPU, g_s on CUDA).")
@@ -543,12 +557,12 @@ def parse_args(argv):
         help="gradient clipping max norm (default: %(default)s",
     )
     parser.add_argument("--checkpoint", type=str, help="Path to SimpleAutoencoder checkpoint", 
-                       default="./checkpoints/train_simple/ms-ssim/checkpoint_best.pth.tar")
+                       default="/home/xie/DCAE/checkpoints/train_simple/ms-ssim/checkpoint_best.pth.tar")
     parser.add_argument("--data", type=str, help="Path to dataset", default='../datasets/dummy/valid')
     parser.add_argument("--save_path", default="./dataset/reconstructed", type=str, 
                        help="Path to save reconstructed images and metrics")
     parser.add_argument("--N", type=int, default=192, help="Number of channels N")
-    parser.add_argument("--M", type=int, default=320, help="Number of channels M")
+    parser.add_argument("--M", type=int, default=160, help="Number of channels M")
     parser.add_argument("--head_dim", nargs='+', type=int, default=[8, 16, 32, 32, 16, 8], 
                        help="Head dimensions for attention")
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size for evaluation")
@@ -591,6 +605,16 @@ def main(argv):
     # Initialize SimpleAutoencoder
     net = SimpleAutoencoder(head_dim=args.head_dim, N=args.N, M=args.M)
     net.eval()
+
+    g_a_size_mb = get_model_size_mb(net.g_a)
+    g_s_size_mb = get_model_size_mb(net.g_s)
+    total_size_mb = g_a_size_mb + g_s_size_mb
+
+    print(f"📏 Model component sizes:")
+    print(f"   g_a (encoder) size: {g_a_size_mb:.2f} MB")
+    print(f"   g_s (decoder) size: {g_s_size_mb:.2f} MB")
+    print(f"   Total model size: {total_size_mb:.2f} MB")
+
     
     # Move g_a to CPU and g_s to CUDA
     net.g_a = net.g_a.to(cpu_device)
@@ -610,8 +634,7 @@ def main(argv):
     
     total_compression_ratio = 0
     size_analysis_done = False  # To print analysis only once
-    
-    # Load checkpoint
+
     if args.checkpoint:  
         print("Loading", args.checkpoint)
         checkpoint = torch.load(args.checkpoint, map_location='cpu')  # Load to CPU first
@@ -630,7 +653,11 @@ def main(argv):
             else:
                 new_state_dict[k] = v
         
-        net.load_state_dict(new_state_dict)
+        # Filter to keep only g_a and g_s parameters
+        filtered_state_dict = {k: v for k, v in new_state_dict.items() 
+                            if k.startswith('g_a') or k.startswith('g_s')}
+        
+        net.load_state_dict(filtered_state_dict)
         
         # Re-deploy components to their respective devices after loading
         net.g_a = net.g_a.to(cpu_device)

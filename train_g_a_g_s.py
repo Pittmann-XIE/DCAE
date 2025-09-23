@@ -362,7 +362,7 @@ def parse_args(argv):
         "--N", type=int, default=192,
     )
     parser.add_argument(
-        "--M", type=int, default=320,
+        "--M", type=int, default=160,
     )
     parser.add_argument(
         "--lr_epoch", nargs='+', type=int, default=[50, 80]
@@ -472,7 +472,7 @@ def main(argv):
     # Initialize SimpleAutoencoder from DCAE checkpoint
     # print("=== Inspecting DCAE Checkpoint ===")
     # inspect_checkpoint(args.dcae_checkpoint)
-    net = SimpleAutoencoder.from_dcae(args.dcae_checkpoint, head_dim=[8, 16, 32, 32, 16, 8], N=args.N, M=args.M)
+    net = SimpleAutoencoder.from_dcae(args.dcae_checkpoint, head_dim=[8, 16, 32, 32, 16, 8], ignore_shape_mismatch=True, N=args.N, M=args.M)
     net = net.to(device)
 
     debug_architecture_mismatch(args.dcae_checkpoint, net)
