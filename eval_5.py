@@ -602,7 +602,11 @@ from compressai.datasets import ImageFolder
 from pytorch_msssim import ms_ssim
 
 # Import your models
-from models import CompressModel, DecompressModel
+from models import (
+    CompressModel,
+    DecompressModel,
+    ParameterSync
+)
 
 def compute_psnr(a, b):
     """Calculate PSNR between two tensors"""
@@ -667,11 +671,6 @@ class ModelEvaluator:
             # STEP 1: Actual compression (CPU) - produces bitstreams
             image_cpu = image.cpu()
             compress_result = self.compress_model.compress(image_cpu)
-            
-            # compress_result = {
-            #     "strings": [y_strings, z_strings],  # Actual bitstreams
-            #     "shape": z.size()[-2:]
-            # }
             
             # STEP 2: Transfer bitstreams (much smaller than tensors)
             strings = compress_result["strings"]
@@ -749,6 +748,7 @@ def evaluate_dataset(evaluator, test_dataloader, output_dir, save_images=True, s
             
             # Save images if requested
             if save_images:
+                print(f'saving image to {output_dir}')
                 save_image(
                     result['original'], 
                     os.path.join(output_dir, 'original', f'image_{image_idx:04d}.png')
@@ -833,7 +833,7 @@ def evaluate_dataset(evaluator, test_dataloader, output_dir, save_images=True, s
 def main():
     parser = argparse.ArgumentParser(description="Evaluate DCAE_5 model performance")
     
-    parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/try_3/60.5/checkpoint_best.pth.tar',
+    parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/try_6/60.5/checkpoint_best.pth.tar',
                         help="Path to checkpoint file (e.g., 60.5checkpoint_best.pth.tar)")
     parser.add_argument("--dataset", type=str, default='dataset',
                         help="Path to test dataset")
@@ -849,9 +849,9 @@ def main():
                         help="N parameter for model")
     parser.add_argument("--M", type=int, default=320,
                         help="M parameter for model")
-    parser.add_argument("--no-save-images", action="store_true",
+    parser.add_argument("--save-images", action="store_true", default= True,
                         help="Don't save reconstructed images (only compute metrics)")
-    parser.add_argument("--no-save-compressed", action="store_true",
+    parser.add_argument("--save-compressed", action="store_true", default=True,
                         help="Don't save compressed data")
     parser.add_argument("--device", type=str, default="cuda",
                         help="Device to use for evaluation")
@@ -895,8 +895,8 @@ def main():
         evaluator=evaluator,
         test_dataloader=test_dataloader,
         output_dir=args.output_dir,
-        save_images=not args.no_save_images,
-        save_compressed=not args.no_save_compressed
+        save_images=args.save_images,
+        save_compressed=args.save_compressed
     )
     
     print(f"\nEvaluation completed successfully!")

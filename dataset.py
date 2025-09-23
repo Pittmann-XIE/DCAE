@@ -1,7 +1,7 @@
 import pandas as pd
 import csv
 
-def sample_csv_entries(input_file, output_file, n_samples):
+def sample_csv_entries(input_file, output_file, n_samples,split):
     # Try different encodings and separators
     encodings = ['utf-8', 'latin-1', 'cp1252']
     separators = [',', '\t', '|', ';']
@@ -29,7 +29,7 @@ def sample_csv_entries(input_file, output_file, n_samples):
     
     # Filter for train subset entries
     if 'Subset' in df.columns:
-        train_df = df[df['Subset'] == 'validation']
+        train_df = df[df['Subset'] == split]
         print(f"Train subset rows: {len(train_df)}")
     else:
         print("No 'Subset' column found, using all rows")
@@ -48,7 +48,7 @@ def sample_csv_entries(input_file, output_file, n_samples):
     # Create new format: "train/imageID"
     new_data = []
     for _, row in sampled_df.iterrows():
-        new_data.append(f"validation/{row['ImageID']}")
+        new_data.append(f"{split}/{row['ImageID']}")
     
     # Save to new CSV file
     with open(output_file, 'w') as f:
@@ -58,4 +58,4 @@ def sample_csv_entries(input_file, output_file, n_samples):
     print(f"Successfully created {output_file} with {len(new_data)} entries")
 
 # Usage
-sample_csv_entries('./validation-images-with-rotation.csv', 'Images_to_download_valid.csv', 100)
+sample_csv_entries('train-images-boxable-with-rotation.csv', 'Images_to_download_train.csv', 1000, split='train')

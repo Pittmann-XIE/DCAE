@@ -2736,7 +2736,7 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description="CPU-GPU split training script.")
     parser.add_argument("--local-rank", default=os.getenv('LOCAL_RANK', -1), type=int)
     parser.add_argument("-d", "--dataset", type=str, default='./dataset', help="Training dataset")
-    parser.add_argument("-e", "--epochs", default=500, type=int)
+    parser.add_argument("-e", "--epochs", default=4000, type=int)
     parser.add_argument("-lr", "--learning-rate", default=1e-4, type=float)
     parser.add_argument("-n", "--num-workers", type=int, default=8)
     parser.add_argument("--lambda", dest="lmbda", type=float, default=60.5)
@@ -2748,9 +2748,9 @@ def parse_args(argv):
     parser.add_argument("--save", action="store_true", default=True)
     parser.add_argument("--seed", type=int, default=100)
     parser.add_argument("--clip_max_norm", default=1.0, type=float)
-    parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/try_4/60.5/checkpoint_latest.pth.tar')
+    parser.add_argument("--checkpoint", type=str, default='checkpoints/train_5/try_6/60.5/checkpoint_best.pth.tar')
     parser.add_argument("--type", type=str, default='ms-ssim', choices=['mse', 'ms-ssim', 'l1'])
-    parser.add_argument("--save_path", type=str, default='./checkpoints/train_5/try_5')
+    parser.add_argument("--save_path", type=str, default='./checkpoints/train_5/try_7')
     parser.add_argument("--N", type=int, default=192)
     parser.add_argument("--M", type=int, default=320)
     parser.add_argument("--lr_epoch", nargs='+', type=int)
@@ -2758,12 +2758,12 @@ def parse_args(argv):
     
     # Enhanced wandb arguments similar to code 2
     parser.add_argument("--wandb_project", type=str, default="Image-compression", help="WandB project name")
-    parser.add_argument("--wandb_run_name", type=str, default='train_5_try5_20250915_02', help="WandB run name")
+    parser.add_argument("--wandb_run_name", type=str, default='train_5_try6_20250916_01', help="WandB run name")
     parser.add_argument("--wandb_tags", nargs='+', type=str, default=[], help="wandb tags")
     
     # Aux scheduler parameters
-    parser.add_argument("--aux_start_loss", type=float, default=3659.0, help="Starting aux loss for scheduler")
-    parser.add_argument("--aux_target_loss", type=float, default=1800.0, help="Target aux loss for scheduler")
+    parser.add_argument("--aux_start_loss", type=float, default=718.0, help="Starting aux loss for scheduler")
+    parser.add_argument("--aux_target_loss", type=float, default=10.0, help="Target aux loss for scheduler")
     parser.add_argument("--use_aux_scheduler", action="store_true", default=True, help="Use exponential target scheduler for aux loss")
     
     args = parser.parse_args(argv)
