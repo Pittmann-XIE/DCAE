@@ -1489,6 +1489,7 @@ class MutiScaleDictionaryCrossAttentionGLU(nn.Module):
         x = self.q_trans(x)
         x = rearrange(x, 'b h w c -> b c h w')
         q = rearrange(x, 'b (e c) h w -> b e (h w) c', e=self.head_num)
+        dt = dt.to(x.device)
         dt = self.dict_ln(dt)
         k = self.k(dt)
         k = rearrange(k, 'b n (e c) -> b e n c', e=self.head_num)
@@ -1630,14 +1631,16 @@ class CompressModel(CompressionModel):
         b = x.size(0)
         print(f'compress device: {x.device}')
         dt = self.dt.repeat([b, 1, 1])
+        dt = dt.to(x.device)
         y = self.g_a(x) 
         y_shape = y.shape[2:]
         
         z = self.h_a(y)
-        z_hat, z_likelihoods = self.entropy_bottleneck(z)
-        # z_offset = self.entropy_bottleneck._get_medians()
-        # z_tmp = z - z_offset
-        # z_hat = ste_round(z_tmp) + z_offset
+        # z_hat, z_likelihoods = self.entropy_bottleneck(z)
+        _, z_likelihoods = self.entropy_bottleneck(z)
+        z_offset = self.entropy_bottleneck._get_medians()
+        z_tmp = z - z_offset
+        z_hat = ste_round(z_tmp) + z_offset
         
         latent_scales = self.h_z_s1(z_hat)
         latent_means = self.h_z_s2(z_hat)
@@ -1688,6 +1691,7 @@ class CompressModel(CompressionModel):
         """Deployment compression"""
         b = x.size(0)
         dt = self.dt.repeat([b, 1, 1])
+        dt = dt.to(x.device)
         y = self.g_a(x)
         y_shape = y.shape[2:]
 
@@ -1865,7 +1869,6 @@ class DecompressModel(CompressionModel):
 
     def forward(self, y_hat, z_hat):
         """Training forward pass for decompression"""
-        
 
         b = z_hat.size(0)
         dt = self.dt.repeat([b, 1, 1])
