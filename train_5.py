@@ -3516,7 +3516,7 @@ def parse_args(argv):
     parser.add_argument("-n", "--num-workers", type=int, default=8)
     parser.add_argument("--lambda", dest="lmbda", type=float, default=60.5)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--test-batch-size", type=int, default=32)
+    parser.add_argument("--test-batch-size", type=int, default=16)
     parser.add_argument("--aux-learning-rate", default=5e-3)
     parser.add_argument("--patch-size", type=int, nargs=2, default=(256, 256))
     parser.add_argument("--cuda", action="store_true", help="Use cuda")
@@ -3541,7 +3541,7 @@ def parse_args(argv):
     
     # Enhanced wandb arguments
     parser.add_argument("--wandb_project", type=str, default="Image-compression", help="WandB project name")
-    parser.add_argument("--wandb_run_name", type=str, default='train_5_try8', help="WandB run name")
+    parser.add_argument("--wandb_run_name", type=str, default='train_5_try9', help="WandB run name")
     parser.add_argument("--wandb_tags", nargs='+', type=str, default=[], help="wandb tags")
     
     # Aux scheduler parameters

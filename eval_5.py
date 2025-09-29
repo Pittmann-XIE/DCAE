@@ -1565,6 +1565,1400 @@
 
 ## eval with pretrained model of dcae.py and save the results and metrics and split the model
 
+# import torch
+# import torch.nn.functional as F
+# from torchvision import transforms
+# from models.dcae_5 import (
+#     CompressModel,
+#     DecompressModel, 
+#     ParameterSync
+# )
+# from models import DCAE
+# import warnings
+# import torch
+# import os
+# import sys
+# import math
+# import argparse
+# import time
+# import warnings
+# from pytorch_msssim import ms_ssim
+# from PIL import Image
+# from thop import profile
+# import pickle
+# warnings.filterwarnings("ignore")
+# torch.set_num_threads(10)
+
+# print(torch.cuda.is_available())
+
+# def save_image(tensor, filename):
+#     img = transforms.ToPILImage()(tensor.squeeze(0).cpu())
+#     img.save(filename)
+
+# def save_compressed_data(strings, shape, filename):
+#     """Save compressed data (strings and shape) to file"""
+#     compressed_data = {
+#         'strings': strings,
+#         'shape': shape
+#     }
+#     with open(filename, 'wb') as f:
+#         pickle.dump(compressed_data, f)
+
+# def load_compressed_data(filename):
+#     """Load compressed data from file"""
+#     with open(filename, 'rb') as f:
+#         compressed_data = pickle.load(f)
+#     return compressed_data['strings'], compressed_data['shape']
+
+# def save_metrics(filename, psnr, bitrate, msssim):
+#     with open(filename, 'w') as f:
+#         f.write(f'PSNR: {psnr:.2f}dB\n')
+#         f.write(f'Bitrate: {bitrate:.3f}bpp\n')
+#         f.write(f'MS-SSIM: {msssim:.4f}\n')
+
+# def compute_psnr(a, b):
+#     mse = torch.mean((a - b)**2).item()
+#     return -10 * math.log10(mse)
+
+# def compute_msssim(a, b):
+#     return -10 * math.log10(1-ms_ssim(a, b, data_range=1.).item())
+
+# def compute_bpp(out_net):
+#     size = out_net['x_hat'].size()
+#     num_pixels = size[0] * size[2] * size[3]
+#     return sum(torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
+#               for likelihoods in out_net['likelihoods'].values()).item()
+
+# def pad(x, p):
+#     h, w = x.size(2), x.size(3)
+#     new_h = (h + p - 1) // p * p
+#     new_w = (w + p - 1) // p * p
+#     padding_left = (new_w - w) // 2
+#     padding_right = new_w - w - padding_left
+#     padding_top = (new_h - h) // 2
+#     padding_bottom = new_h - h - padding_top
+#     x_padded = F.pad(
+#         x,
+#         (padding_left, padding_right, padding_top, padding_bottom),
+#         mode="constant",
+#         value=0,
+#     )
+#     return x_padded, (padding_left, padding_right, padding_top, padding_bottom)
+
+# def crop(x, padding):
+#     return F.pad(
+#         x,
+#         (-padding[0], -padding[1], -padding[2], -padding[3]),
+#     )
+
+# def transfer_tensors_to_device(data, target_device):
+#     """Transfer tensors in nested structures to target device"""
+#     if isinstance(data, torch.Tensor):
+#         return data.to(target_device)
+#     elif isinstance(data, dict):
+#         return {k: transfer_tensors_to_device(v, target_device) for k, v in data.items()}
+#     elif isinstance(data, list):
+#         return [transfer_tensors_to_device(item, target_device) for item in data]
+#     elif isinstance(data, tuple):
+#         return tuple(transfer_tensors_to_device(item, target_device) for item in data)
+#     else:
+#         return data
+
+# def get_device(device_str):
+#     """Convert device string to actual device"""
+#     if device_str.lower() == 'cpu':
+#         return torch.device('cpu')
+#     elif device_str.lower().startswith('cuda'):
+#         if torch.cuda.is_available():
+#             return torch.device(device_str)
+#         else:
+#             print(f"Warning: CUDA not available, falling back to CPU")
+#             return torch.device('cpu')
+#     else:
+#         raise ValueError(f"Invalid device: {device_str}")
+
+# def load_pretrained_to_split_models(checkpoint_path, compress_model, decompress_model, compress_device, decompress_device):
+#     """Load pretrained unified model weights to split models"""
+#     print(f"Loading pretrained weights from {checkpoint_path}")
+    
+#     # Load unified model checkpoint on CPU first to avoid memory issues
+#     checkpoint = torch.load(checkpoint_path, map_location='cpu')
+#     unified_state_dict = {}
+    
+#     # Clean up state dict keys
+#     for k, v in checkpoint["state_dict"].items():
+#         unified_state_dict[k.replace("module.", "")] = v
+    
+#     # Create temporary unified model on CPU
+#     temp_unified_model = DCAE()
+#     temp_unified_model.load_state_dict(unified_state_dict)
+    
+#     # Transfer encoder components to compress model
+#     compress_model.g_a.load_state_dict(temp_unified_model.g_a.state_dict())
+#     compress_model.h_a.load_state_dict(temp_unified_model.h_a.state_dict())
+    
+#     # Transfer decoder components to decompress model
+#     decompress_model.g_s.load_state_dict(temp_unified_model.g_s.state_dict())
+    
+#     # Transfer shared components to both models
+#     shared_components = [
+#         'dt', 'h_z_s1', 'h_z_s2', 'cc_mean_transforms', 
+#         'cc_scale_transforms', 'lrp_transforms', 'dt_cross_attention',
+#         'entropy_bottleneck', 'gaussian_conditional'
+#     ]
+    
+#     for component in shared_components:
+#         if hasattr(temp_unified_model, component):
+#             if component == 'dt':
+#                 compress_model.dt.data = temp_unified_model.dt.data.clone()
+#                 decompress_model.dt.data = temp_unified_model.dt.data.clone()
+#             else:
+#                 getattr(compress_model, component).load_state_dict(
+#                     getattr(temp_unified_model, component).state_dict()
+#                 )
+#                 getattr(decompress_model, component).load_state_dict(
+#                     getattr(temp_unified_model, component).state_dict()
+#                 )
+    
+#     print("Successfully transferred pretrained weights to split models")
+#     print(f"Compression model device: {compress_device}")
+#     print(f"Decompression model device: {decompress_device}")
+#     del temp_unified_model  # Clean up memory
+
+# def full_pipeline_forward(compress_model, decompress_model, x, compress_device, decompress_device):
+#     """Simulate full pipeline for non-real mode evaluation with device handling"""
+#     # Ensure input is on compression device
+#     x = x.to(compress_device)
+    
+#     # Compression forward pass
+#     compress_out = compress_model.forward(x)
+    
+#     # Extract the necessary outputs for decompression
+#     y_hat = compress_out["y_hat"] 
+#     z_hat = compress_out["z_hat"]
+    
+#     # Transfer latents to decompression device if different
+#     if compress_device != decompress_device:
+#         y_hat = y_hat.to(decompress_device)
+#         z_hat = z_hat.to(decompress_device)
+    
+#     # Decompression forward pass
+#     decompress_out = decompress_model.forward(y_hat, z_hat)
+    
+#     # Transfer output back to original device for evaluation
+#     x_hat = decompress_out["x_hat"]
+#     if decompress_device != compress_device:
+#         x_hat = x_hat.to(compress_device)
+    
+#     # Combine outputs for evaluation
+#     combined_out = {
+#         "x_hat": x_hat,
+#         "likelihoods": compress_out["likelihoods"]
+#     }
+    
+#     return combined_out
+
+# def parse_args(argv):
+#     parser = argparse.ArgumentParser(description="Example testing script for split DCAE models with device control.")
+#     parser.add_argument("--cuda", action="store_true", help="Use cuda (deprecated, use --compress_device and --decompress_device)")
+#     parser.add_argument("--compress_device", type=str, default="cpu", 
+#                        help="Device for compression model (cpu, cuda, cuda:0, cuda:1, etc.)")
+#     parser.add_argument("--decompress_device", type=str, default="cuda",
+#                        help="Device for decompression model (cpu, cuda, cuda:0, cuda:1, etc.)")
+#     parser.add_argument(
+#         "--clip_max_norm",
+#         default=1.0,
+#         type=float,
+#         help="gradient clipping max norm (default: %(default)s",
+#     )
+#     parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint", default='/home/xie/DCAE/checkpoints/train_5/try_9/60.5/checkpoint_best.pth.tar')
+#     parser.add_argument("--data", type=str, help="Path to dataset", default='/home/xie/datasets/dummy/valid')
+#     parser.add_argument("--save_path", default='eval', type=str, help="Path to save")
+#     parser.add_argument(
+#         "--real", action="store_true"
+#     )
+#     parser.set_defaults(real=False)
+#     args = parser.parse_args(argv)
+#     return args
+
+# def main(argv):
+#     torch.backends.cudnn.enabled = False
+#     args = parse_args(argv)
+#     p = 128
+#     path = args.data
+#     img_list = []
+#     for file in os.listdir(path):
+#         if file[-3:] in ["jpg", "png", "peg"]:
+#             img_list.append(file)
+    
+#     # Handle device specification
+#     if args.cuda:
+#         print("Warning: --cuda flag is deprecated. Use --compress_device and --decompress_device instead.")
+#         if args.compress_device == "cpu" and args.decompress_device == "cpu":
+#             args.compress_device = "cuda"
+#             args.decompress_device = "cuda"
+    
+#     # Get actual devices
+#     compress_device = get_device(args.compress_device)
+#     decompress_device = get_device(args.decompress_device)
+    
+#     print(f"Compression device: {compress_device}")
+#     print(f"Decompression device: {decompress_device}")
+        
+#     # Create split models on respective devices
+#     compress_model = CompressModel().to(compress_device)
+#     decompress_model = DecompressModel().to(decompress_device)
+    
+#     compress_model.eval()
+#     decompress_model.eval()
+    
+#     # Create output directories
+#     compressed_dir = os.path.join(args.save_path,"compressed")
+#     reconstructed_dir = os.path.join(args.save_path,"reconstructed")
+#     os.makedirs(compressed_dir, exist_ok=True)
+#     os.makedirs(reconstructed_dir, exist_ok=True)
+    
+#     count = 0
+#     PSNR = 0
+#     Bit_rate = 0
+#     MS_SSIM = 0
+#     total_time = 0
+#     encode_time = 0
+#     decode_time = 0
+#     transfer_time = 0
+#     ave_flops = 0
+#     encoder_time = 0
+    
+#     if args.checkpoint:  
+#         load_pretrained_to_split_models(args.checkpoint, compress_model, decompress_model, 
+#                                        compress_device, decompress_device)
+        
+#     if args.real:
+#         # Update entropy models for actual compression/decompression
+#         compress_model.update()
+#         decompress_model.update()
+        
+#         for img_name in img_list:
+#             img_path = os.path.join(path, img_name)
+#             img = transforms.ToTensor()(Image.open(img_path).convert('RGB'))
+#             x = img.unsqueeze(0)
+#             x_padded, padding = pad(x, p)
+            
+#             # Move input to compression device
+#             x_padded = x_padded.to(compress_device)
+#             x = x.to(compress_device)
+
+#             count += 1
+#             with torch.no_grad():
+#                 # Compression phase
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 s = time.time()
+#                 out_enc = compress_model.compress(x_padded)
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 e = time.time()
+#                 encode_time += (e - s)
+#                 total_time += (e - s)
+
+#                 # Save compressed data
+#                 img_base_name = img_name.split('.')[0]
+#                 compressed_file = os.path.join(compressed_dir, f"{img_base_name}_compressed.pkl")
+#                 save_compressed_data(out_enc["strings"], out_enc["shape"], compressed_file)
+#                 print(f"Saved compressed data: {compressed_file}")
+
+#                 # Data transfer time (if devices are different)
+#                 transfer_start = time.time()
+#                 # Note: strings are already on CPU, so no transfer needed for compressed data
+#                 transfer_end = time.time()
+#                 transfer_time += (transfer_end - transfer_start)
+
+#                 # Decompression phase
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 s = time.time()
+#                 out_dec = decompress_model.decompress(out_enc["strings"], out_enc["shape"])
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 e = time.time()
+#                 decode_time += (e - s)
+#                 total_time += (e - s)
+
+#                 # Transfer result back to compression device for evaluation
+#                 if compress_device != decompress_device:
+#                     out_dec["x_hat"] = out_dec["x_hat"].to(compress_device)
+
+#                 out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
+                
+#                 # Save reconstructed image
+#                 reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_reconstructed.png")
+#                 save_image(out_dec["x_hat"], reconstructed_file)
+#                 print(f"Saved reconstructed image: {reconstructed_file}")
+                
+#                 num_pixels = x.size(0) * x.size(2) * x.size(3)
+                
+#                 bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
+#                 psnr = compute_psnr(x, out_dec["x_hat"])
+#                 msssim = compute_msssim(x, out_dec["x_hat"])
+                
+#                 print(f'Bitrate: {bit_rate:.3f}bpp')
+#                 print(f'MS-SSIM: {msssim:.2f}dB')
+#                 print(f'PSNR: {psnr:.2f}dB')
+                
+#                 Bit_rate += bit_rate
+#                 PSNR += psnr
+#                 MS_SSIM += msssim
+                
+#     else:
+#         # Forward pass mode (training-like evaluation)
+#         for img_name in img_list:
+#             img_path = os.path.join(path, img_name)
+#             img = Image.open(img_path).convert('RGB')
+#             x = transforms.ToTensor()(img).unsqueeze(0)
+#             x_padded, padding = pad(x, p)
+
+#             count += 1
+#             with torch.no_grad():
+#                 # Synchronize both devices if CUDA
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+                    
+#                 s = time.time()
+                
+#                 # Use full pipeline simulation with device handling
+#                 out_net = full_pipeline_forward(compress_model, decompress_model, x_padded, 
+#                                               compress_device, decompress_device)
+                
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 e = time.time()
+#                 total_time += (e - s)
+                
+#                 out_net['x_hat'].clamp_(0, 1)
+#                 out_net["x_hat"] = crop(out_net["x_hat"], padding)
+                
+#                 # Ensure x is on the same device as output for comparison
+#                 x = x.to(out_net["x_hat"].device)
+                
+#                 # Save reconstructed image (forward mode)
+#                 img_base_name = img_name.split('.')[0]
+#                 reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_forward_reconstructed.png")
+#                 save_image(out_net["x_hat"], reconstructed_file)
+#                 print(f"Saved forward reconstructed image: {reconstructed_file}")
+                
+#                 psnr = compute_psnr(x, out_net["x_hat"])
+#                 msssim = compute_msssim(x, out_net["x_hat"])
+#                 bpp = compute_bpp(out_net)
+                
+#                 print(f'PSNR: {psnr:.2f}dB')
+#                 print(f'MS-SSIM: {msssim:.2f}dB')
+#                 print(f'Bit-rate: {bpp:.3f}bpp')
+                
+#                 PSNR += psnr
+#                 MS_SSIM += msssim
+#                 Bit_rate += bpp
+    
+#     # Calculate averages
+#     PSNR = PSNR / count
+#     MS_SSIM = MS_SSIM / count
+#     Bit_rate = Bit_rate / count
+#     total_time = total_time / count
+#     encode_time = encode_time / count
+#     decode_time = decode_time / count
+#     transfer_time = transfer_time / count
+#     ave_flops = ave_flops / count
+#     encoder_time = encoder_time / count
+    
+#     print(f'\n=== EVALUATION RESULTS ===')
+#     print(f'Compression Device: {compress_device}')
+#     print(f'Decompression Device: {decompress_device}')
+#     print(f'average_encoder_time: {encoder_time:.3f} ms')
+#     print(f'average_PSNR: {PSNR:.2f} dB')
+#     print(f'average_MS-SSIM: {MS_SSIM:.4f}')
+#     print(f'average_Bit-rate: {Bit_rate:.3f} bpp')
+#     print(f'average_total_time: {total_time:.3f} ms')
+#     print(f'average_encode_time: {encode_time:.3f} ms')
+#     print(f'average_decode_time: {decode_time:.3f} ms')
+#     print(f'average_transfer_time: {transfer_time:.3f} ms')
+#     print(f'average_flops: {ave_flops:.3f}')
+    
+#     print(f'\n=== SAVED FILES ===')
+#     print(f'Compressed data saved to: {compressed_dir}/')
+#     print(f'Reconstructed images saved to: {reconstructed_dir}/')
+
+# if __name__ == "__main__":
+#     print(torch.cuda.is_available())
+#     main(sys.argv[1:])
+
+
+# ## load split trained model
+# import torch
+# import torch.nn.functional as F
+# from torchvision import transforms
+# from models.dcae_5 import (
+#     CompressModel,
+#     DecompressModel, 
+#     ParameterSync
+# )
+# from models import DCAE
+# import warnings
+# import torch
+# import os
+# import sys
+# import math
+# import argparse
+# import time
+# import warnings
+# from pytorch_msssim import ms_ssim
+# from PIL import Image
+# from thop import profile
+# import pickle
+# warnings.filterwarnings("ignore")
+# torch.set_num_threads(10)
+
+# print(torch.cuda.is_available())
+
+# def save_image(tensor, filename):
+#     img = transforms.ToPILImage()(tensor.squeeze(0).cpu())
+#     img.save(filename)
+
+# def save_compressed_data(strings, shape, filename):
+#     """Save compressed data (strings and shape) to file"""
+#     compressed_data = {
+#         'strings': strings,
+#         'shape': shape
+#     }
+#     with open(filename, 'wb') as f:
+#         pickle.dump(compressed_data, f)
+
+# def load_compressed_data(filename):
+#     """Load compressed data from file"""
+#     with open(filename, 'rb') as f:
+#         compressed_data = pickle.load(f)
+#     return compressed_data['strings'], compressed_data['shape']
+
+# def save_metrics(filename, psnr, bitrate, msssim):
+#     with open(filename, 'w') as f:
+#         f.write(f'PSNR: {psnr:.2f}dB\n')
+#         f.write(f'Bitrate: {bitrate:.3f}bpp\n')
+#         f.write(f'MS-SSIM: {msssim:.4f}\n')
+
+# def compute_psnr(a, b):
+#     mse = torch.mean((a - b)**2).item()
+#     return -10 * math.log10(mse)
+
+# def compute_msssim(a, b):
+#     return -10 * math.log10(1-ms_ssim(a, b, data_range=1.).item())
+
+# def compute_bpp(out_net):
+#     size = out_net['x_hat'].size()
+#     num_pixels = size[0] * size[2] * size[3]
+#     return sum(torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
+#               for likelihoods in out_net['likelihoods'].values()).item()
+
+# def pad(x, p):
+#     h, w = x.size(2), x.size(3)
+#     new_h = (h + p - 1) // p * p
+#     new_w = (w + p - 1) // p * p
+#     padding_left = (new_w - w) // 2
+#     padding_right = new_w - w - padding_left
+#     padding_top = (new_h - h) // 2
+#     padding_bottom = new_h - h - padding_top
+#     x_padded = F.pad(
+#         x,
+#         (padding_left, padding_right, padding_top, padding_bottom),
+#         mode="constant",
+#         value=0,
+#     )
+#     return x_padded, (padding_left, padding_right, padding_top, padding_bottom)
+
+# def crop(x, padding):
+#     return F.pad(
+#         x,
+#         (-padding[0], -padding[1], -padding[2], -padding[3]),
+#     )
+
+# def transfer_tensors_to_device(data, target_device):
+#     """Transfer tensors in nested structures to target device"""
+#     if isinstance(data, torch.Tensor):
+#         return data.to(target_device)
+#     elif isinstance(data, dict):
+#         return {k: transfer_tensors_to_device(v, target_device) for k, v in data.items()}
+#     elif isinstance(data, list):
+#         return [transfer_tensors_to_device(item, target_device) for item in data]
+#     elif isinstance(data, tuple):
+#         return tuple(transfer_tensors_to_device(item, target_device) for item in data)
+#     else:
+#         return data
+
+# def get_device(device_str):
+#     """Convert device string to actual device"""
+#     if device_str.lower() == 'cpu':
+#         return torch.device('cpu')
+#     elif device_str.lower().startswith('cuda'):
+#         if torch.cuda.is_available():
+#             return torch.device(device_str)
+#         else:
+#             print(f"Warning: CUDA not available, falling back to CPU")
+#             return torch.device('cpu')
+#     else:
+#         raise ValueError(f"Invalid device: {device_str}")
+
+
+# def load_pretrained_to_split_models(checkpoint_path, compress_model, decompress_model, compress_device, decompress_device):
+#     """Load pretrained unified model weights to split models"""
+#     print(f"Loading pretrained weights from {checkpoint_path}")
+    
+#     # Load checkpoint on CPU first to avoid memory issues
+#     checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    
+#     # Check if this is a split model checkpoint (from train_5.py) or unified model checkpoint
+#     if 'compress_model' in checkpoint and 'decompress_model' in checkpoint:
+#         # This is a split model checkpoint from train_5.py
+#         print("Loading split model checkpoint...")
+        
+#         # Load compress model state
+#         compress_state_dict = {}
+#         for k, v in checkpoint['compress_model']['state_dict'].items():
+#             compress_state_dict[k.replace("module.", "")] = v
+#         compress_model.load_state_dict(compress_state_dict)
+        
+#         # Load decompress model state  
+#         decompress_state_dict = {}
+#         for k, v in checkpoint['decompress_model']['state_dict'].items():
+#             decompress_state_dict[k.replace("module.", "")] = v
+#         decompress_model.load_state_dict(decompress_state_dict)
+        
+#         print("Successfully loaded split model checkpoint")
+        
+#     elif 'state_dict' in checkpoint:
+#         # This is a unified model checkpoint - use original logic
+#         print("Loading unified model checkpoint...")
+#         unified_state_dict = {}
+        
+#         # Clean up state dict keys
+#         for k, v in checkpoint["state_dict"].items():
+#             unified_state_dict[k.replace("module.", "")] = v
+        
+#         # Create temporary unified model on CPU
+#         temp_unified_model = DCAE()
+#         temp_unified_model.load_state_dict(unified_state_dict)
+        
+#         # Transfer encoder components to compress model
+#         compress_model.g_a.load_state_dict(temp_unified_model.g_a.state_dict())
+#         compress_model.h_a.load_state_dict(temp_unified_model.h_a.state_dict())
+        
+#         # Transfer decoder components to decompress model
+#         decompress_model.g_s.load_state_dict(temp_unified_model.g_s.state_dict())
+        
+#         # Transfer shared components to both models
+#         shared_components = [
+#             'dt', 'h_z_s1', 'h_z_s2', 'cc_mean_transforms', 
+#             'cc_scale_transforms', 'lrp_transforms', 'dt_cross_attention',
+#             'entropy_bottleneck', 'gaussian_conditional'
+#         ]
+        
+#         for component in shared_components:
+#             if hasattr(temp_unified_model, component):
+#                 if component == 'dt':
+#                     compress_model.dt.data = temp_unified_model.dt.data.clone()
+#                     decompress_model.dt.data = temp_unified_model.dt.data.clone()
+#                 else:
+#                     getattr(compress_model, component).load_state_dict(
+#                         getattr(temp_unified_model, component).state_dict()
+#                     )
+#                     getattr(decompress_model, component).load_state_dict(
+#                         getattr(temp_unified_model, component).state_dict()
+#                     )
+        
+#         del temp_unified_model  # Clean up memory
+#         print("Successfully transferred unified model weights to split models")
+#     else:
+#         raise ValueError("Checkpoint format not recognized. Expected either 'state_dict' key (unified model) or 'compress_model'/'decompress_model' keys (split model).")
+    
+#     print(f"Compression model device: {compress_device}")
+#     print(f"Decompression model device: {decompress_device}")
+
+
+
+
+# def full_pipeline_forward(compress_model, decompress_model, x, compress_device, decompress_device):
+#     """Simulate full pipeline for non-real mode evaluation with device handling"""
+#     # Ensure input is on compression device
+#     x = x.to(compress_device)
+    
+#     # Compression forward pass
+#     compress_out = compress_model.forward(x)
+    
+#     # Extract the necessary outputs for decompression
+#     y_hat = compress_out["y_hat"] 
+#     z_hat = compress_out["z_hat"]
+    
+#     # Transfer latents to decompression device if different
+#     if compress_device != decompress_device:
+#         y_hat = y_hat.to(decompress_device)
+#         z_hat = z_hat.to(decompress_device)
+    
+#     # Decompression forward pass
+#     decompress_out = decompress_model.forward(y_hat, z_hat)
+    
+#     # Transfer output back to original device for evaluation
+#     x_hat = decompress_out["x_hat"]
+#     if decompress_device != compress_device:
+#         x_hat = x_hat.to(compress_device)
+    
+#     # Combine outputs for evaluation
+#     combined_out = {
+#         "x_hat": x_hat,
+#         "likelihoods": compress_out["likelihoods"]
+#     }
+    
+#     return combined_out
+
+# def parse_args(argv):
+#     parser = argparse.ArgumentParser(description="Example testing script for split DCAE models with device control.")
+#     parser.add_argument("--cuda", action="store_true", help="Use cuda (deprecated, use --compress_device and --decompress_device)")
+#     parser.add_argument("--compress_device", type=str, default="cpu", 
+#                        help="Device for compression model (cpu, cuda, cuda:0, cuda:1, etc.)")
+#     parser.add_argument("--decompress_device", type=str, default="cuda",
+#                        help="Device for decompression model (cpu, cuda, cuda:0, cuda:1, etc.)")
+#     parser.add_argument(
+#         "--clip_max_norm",
+#         default=1.0,
+#         type=float,
+#         help="gradient clipping max norm (default: %(default)s",
+#     )
+#     parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint", default='/home/xie/DCAE/checkpoints/train_5/try_9/60.5/checkpoint_best.pth.tar') #, /home/xie/DCAE/60.5checkpoint_best.pth.tar'
+#     parser.add_argument("--data", type=str, help="Path to dataset", default='/home/xie/datasets/dummy/valid')
+#     parser.add_argument("--save_path", default='eval', type=str, help="Path to save")
+#     parser.add_argument(
+#         "--real", action="store_true"
+#     )
+#     parser.set_defaults(real=False)
+#     args = parser.parse_args(argv)
+#     return args
+
+# def main(argv):
+#     torch.backends.cudnn.enabled = False
+#     args = parse_args(argv)
+#     p = 128
+#     path = args.data
+#     img_list = []
+#     for file in os.listdir(path):
+#         if file[-3:] in ["jpg", "png", "peg"]:
+#             img_list.append(file)
+    
+#     # Handle device specification
+#     if args.cuda:
+#         print("Warning: --cuda flag is deprecated. Use --compress_device and --decompress_device instead.")
+#         if args.compress_device == "cpu" and args.decompress_device == "cpu":
+#             args.compress_device = "cuda"
+#             args.decompress_device = "cuda"
+    
+#     # Get actual devices
+#     compress_device = get_device(args.compress_device)
+#     decompress_device = get_device(args.decompress_device)
+    
+#     print(f"Compression device: {compress_device}")
+#     print(f"Decompression device: {decompress_device}")
+        
+#     # Create split models on respective devices
+#     compress_model = CompressModel().to(compress_device)
+#     decompress_model = DecompressModel().to(decompress_device)
+    
+#     compress_model.eval()
+#     decompress_model.eval()
+    
+#     # Create output directories
+#     compressed_dir = os.path.join(args.save_path,"compressed")
+#     reconstructed_dir = os.path.join(args.save_path,"reconstructed")
+#     os.makedirs(compressed_dir, exist_ok=True)
+#     os.makedirs(reconstructed_dir, exist_ok=True)
+    
+#     count = 0
+#     PSNR = 0
+#     Bit_rate = 0
+#     MS_SSIM = 0
+#     total_time = 0
+#     encode_time = 0
+#     decode_time = 0
+#     transfer_time = 0
+#     ave_flops = 0
+    
+#     if args.checkpoint:  
+#         load_pretrained_to_split_models(args.checkpoint, compress_model, decompress_model, 
+#                                        compress_device, decompress_device)
+        
+#     if args.real:
+#         # Update entropy models for actual compression/decompression
+#         compress_model.update()
+#         decompress_model.update()
+        
+#         for img_name in img_list:
+#             img_path = os.path.join(path, img_name)
+#             img = transforms.ToTensor()(Image.open(img_path).convert('RGB'))
+#             x = img.unsqueeze(0)
+#             x_padded, padding = pad(x, p)
+            
+#             # Move input to compression device
+#             x_padded = x_padded.to(compress_device)
+#             x = x.to(compress_device)
+
+#             count += 1
+#             with torch.no_grad():
+#                 # Compression phase
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 s = time.time()
+#                 out_enc = compress_model.compress(x_padded)
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 e = time.time()
+#                 encode_time += (e - s)
+#                 total_time += (e - s)
+
+#                 # Save compressed data
+#                 img_base_name = img_name.split('.')[0]
+#                 compressed_file = os.path.join(compressed_dir, f"{img_base_name}_compressed.pkl")
+#                 save_compressed_data(out_enc["strings"], out_enc["shape"], compressed_file)
+#                 print(f"Saved compressed data: {compressed_file}")
+
+#                 # Data transfer time (if devices are different)
+#                 transfer_start = time.time()
+#                 # Note: strings are already on CPU, so no transfer needed for compressed data
+#                 transfer_end = time.time()
+#                 transfer_time += (transfer_end - transfer_start)
+
+#                 # Decompression phase
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 s = time.time()
+#                 out_dec = decompress_model.decompress(out_enc["strings"], out_enc["shape"])
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 e = time.time()
+#                 decode_time += (e - s)
+#                 total_time += (e - s)
+
+#                 # Transfer result back to compression device for evaluation
+#                 if compress_device != decompress_device:
+#                     out_dec["x_hat"] = out_dec["x_hat"].to(compress_device)
+
+#                 out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
+                
+#                 # Save reconstructed image
+#                 reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_reconstructed.png")
+#                 save_image(out_dec["x_hat"], reconstructed_file)
+#                 print(f"Saved reconstructed image: {reconstructed_file}")
+                
+#                 num_pixels = x.size(0) * x.size(2) * x.size(3)
+                
+#                 bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
+#                 psnr = compute_psnr(x, out_dec["x_hat"])
+#                 msssim = compute_msssim(x, out_dec["x_hat"])
+                
+#                 print(f'Bitrate: {bit_rate:.3f}bpp')
+#                 print(f'MS-SSIM: {msssim:.2f}dB')
+#                 print(f'PSNR: {psnr:.2f}dB')
+                
+#                 Bit_rate += bit_rate
+#                 PSNR += psnr
+#                 MS_SSIM += msssim
+                
+#     else:
+#         # Forward pass mode (training-like evaluation)
+#         for img_name in img_list:
+#             img_path = os.path.join(path, img_name)
+#             img = Image.open(img_path).convert('RGB')
+#             x = transforms.ToTensor()(img).unsqueeze(0)
+#             x_padded, padding = pad(x, p)
+
+#             count += 1
+#             with torch.no_grad():
+#                 # Synchronize both devices if CUDA
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+                    
+#                 s = time.time()
+                
+#                 # Use full pipeline simulation with device handling
+#                 out_net = full_pipeline_forward(compress_model, decompress_model, x_padded, 
+#                                               compress_device, decompress_device)
+                
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 e = time.time()
+#                 total_time += (e - s)
+                
+#                 out_net['x_hat'].clamp_(0, 1)
+#                 out_net["x_hat"] = crop(out_net["x_hat"], padding)
+                
+#                 # Ensure x is on the same device as output for comparison
+#                 x = x.to(out_net["x_hat"].device)
+                
+#                 # Save reconstructed image (forward mode)
+#                 img_base_name = img_name.split('.')[0]
+#                 reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_forward_reconstructed.png")
+#                 save_image(out_net["x_hat"], reconstructed_file)
+#                 print(f"Saved forward reconstructed image: {reconstructed_file}")
+                
+#                 psnr = compute_psnr(x, out_net["x_hat"])
+#                 msssim = compute_msssim(x, out_net["x_hat"])
+#                 bpp = compute_bpp(out_net)
+                
+#                 print(f'PSNR: {psnr:.2f}dB')
+#                 print(f'MS-SSIM: {msssim:.2f}dB')
+#                 print(f'Bit-rate: {bpp:.3f}bpp')
+                
+#                 PSNR += psnr
+#                 MS_SSIM += msssim
+#                 Bit_rate += bpp
+    
+#     # Calculate averages
+#     PSNR = PSNR / count
+#     MS_SSIM = MS_SSIM / count
+#     Bit_rate = Bit_rate / count
+#     total_time = total_time / count
+#     encode_time = encode_time / count
+#     decode_time = decode_time / count
+#     transfer_time = transfer_time / count
+#     ave_flops = ave_flops / count
+    
+#     print(f'\n=== EVALUATION RESULTS ===')
+#     print(f'Compression Device: {compress_device}')
+#     print(f'Decompression Device: {decompress_device}')
+#     print(f'average_PSNR: {PSNR:.2f} dB')
+#     print(f'average_MS-SSIM: {MS_SSIM:.4f}')
+#     print(f'average_Bit-rate: {Bit_rate:.3f} bpp')
+#     print(f'average_total_time: {total_time:.3f} ms')
+#     print(f'average_encode_time: {encode_time:.3f} ms')
+#     print(f'average_decode_time: {decode_time:.3f} ms')
+#     print(f'average_transfer_time: {transfer_time:.3f} ms')
+#     print(f'average_flops: {ave_flops:.3f}')
+    
+#     print(f'\n=== SAVED FILES ===')
+#     print(f'Compressed data saved to: {compressed_dir}/')
+#     print(f'Reconstructed images saved to: {reconstructed_dir}/')
+
+# if __name__ == "__main__":
+#     print(torch.cuda.is_available())
+#     main(sys.argv[1:])
+
+
+##
+
+# import torch
+# import torch.nn.functional as F
+# from torchvision import transforms
+# from models.dcae_5 import (
+#     CompressModel,
+#     DecompressModel, 
+#     ParameterSync
+# )
+# from models import DCAE
+# import warnings
+# import torch
+# import os
+# import sys
+# import math
+# import argparse
+# import time
+# import warnings
+# from pytorch_msssim import ms_ssim
+# from PIL import Image
+# from thop import profile
+# import pickle
+# warnings.filterwarnings("ignore")
+# torch.set_num_threads(10)
+
+# print(torch.cuda.is_available())
+
+# def save_image(tensor, filename):
+#     img = transforms.ToPILImage()(tensor.squeeze(0).cpu())
+#     img.save(filename)
+
+# def save_compressed_data(strings, shape, filename):
+#     """Save compressed data (strings and shape) to file"""
+#     compressed_data = {
+#         'strings': strings,
+#         'shape': shape
+#     }
+#     with open(filename, 'wb') as f:
+#         pickle.dump(compressed_data, f)
+
+# def load_compressed_data(filename):
+#     """Load compressed data from file"""
+#     with open(filename, 'rb') as f:
+#         compressed_data = pickle.load(f)
+#     return compressed_data['strings'], compressed_data['shape']
+
+# def save_metrics(filename, psnr, bitrate, msssim):
+#     with open(filename, 'w') as f:
+#         f.write(f'PSNR: {psnr:.2f}dB\n')
+#         f.write(f'Bitrate: {bitrate:.3f}bpp\n')
+#         f.write(f'MS-SSIM: {msssim:.4f}\n')
+
+# def compute_psnr(a, b):
+#     mse = torch.mean((a - b)**2).item()
+#     return -10 * math.log10(mse)
+
+# def compute_msssim(a, b):
+#     return -10 * math.log10(1-ms_ssim(a, b, data_range=1.).item())
+
+# def compute_bpp(out_net):
+#     size = out_net['x_hat'].size()
+#     num_pixels = size[0] * size[2] * size[3]
+#     return sum(torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
+#               for likelihoods in out_net['likelihoods'].values()).item()
+
+# def compute_compressed_size(strings, shape):
+#     """Compute the size in bytes of compressed strings and shape"""
+#     # Calculate size of strings
+#     strings_size = 0
+#     for string_list in strings:
+#         for string in string_list:
+#             strings_size += len(string)
+    
+#     # Calculate size of shape (serialized)
+#     shape_size = sys.getsizeof(pickle.dumps(shape))
+    
+#     return strings_size, shape_size
+
+# def pad(x, p):
+#     h, w = x.size(2), x.size(3)
+#     new_h = (h + p - 1) // p * p
+#     new_w = (w + p - 1) // p * p
+#     padding_left = (new_w - w) // 2
+#     padding_right = new_w - w - padding_left
+#     padding_top = (new_h - h) // 2
+#     padding_bottom = new_h - h - padding_top
+#     x_padded = F.pad(
+#         x,
+#         (padding_left, padding_right, padding_top, padding_bottom),
+#         mode="constant",
+#         value=0,
+#     )
+#     return x_padded, (padding_left, padding_right, padding_top, padding_bottom)
+
+# def crop(x, padding):
+#     return F.pad(
+#         x,
+#         (-padding[0], -padding[1], -padding[2], -padding[3]),
+#     )
+
+# def transfer_tensors_to_device(data, target_device):
+#     """Transfer tensors in nested structures to target device"""
+#     if isinstance(data, torch.Tensor):
+#         return data.to(target_device)
+#     elif isinstance(data, dict):
+#         return {k: transfer_tensors_to_device(v, target_device) for k, v in data.items()}
+#     elif isinstance(data, list):
+#         return [transfer_tensors_to_device(item, target_device) for item in data]
+#     elif isinstance(data, tuple):
+#         return tuple(transfer_tensors_to_device(item, target_device) for item in data)
+#     else:
+#         return data
+
+# def get_device(device_str):
+#     """Convert device string to actual device"""
+#     if device_str.lower() == 'cpu':
+#         return torch.device('cpu')
+#     elif device_str.lower().startswith('cuda'):
+#         if torch.cuda.is_available():
+#             return torch.device(device_str)
+#         else:
+#             print(f"Warning: CUDA not available, falling back to CPU")
+#             return torch.device('cpu')
+#     else:
+#         raise ValueError(f"Invalid device: {device_str}")
+
+
+# def load_pretrained_to_split_models(checkpoint_path, compress_model, decompress_model, compress_device, decompress_device):
+#     """Load pretrained unified model weights to split models"""
+#     print(f"Loading pretrained weights from {checkpoint_path}")
+    
+#     # Load checkpoint on CPU first to avoid memory issues
+#     checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    
+#     # Check if this is a split model checkpoint (from train_5.py) or unified model checkpoint
+#     if 'compress_model' in checkpoint and 'decompress_model' in checkpoint:
+#         # This is a split model checkpoint from train_5.py
+#         print("Loading split model checkpoint...")
+        
+#         # Load compress model state
+#         compress_state_dict = {}
+#         for k, v in checkpoint['compress_model']['state_dict'].items():
+#             compress_state_dict[k.replace("module.", "")] = v
+#         compress_model.load_state_dict(compress_state_dict)
+        
+#         # Load decompress model state  
+#         decompress_state_dict = {}
+#         for k, v in checkpoint['decompress_model']['state_dict'].items():
+#             decompress_state_dict[k.replace("module.", "")] = v
+#         decompress_model.load_state_dict(decompress_state_dict)
+        
+#         print("Successfully loaded split model checkpoint")
+        
+#     elif 'state_dict' in checkpoint:
+#         # This is a unified model checkpoint - use original logic
+#         print("Loading unified model checkpoint...")
+#         unified_state_dict = {}
+        
+#         # Clean up state dict keys
+#         for k, v in checkpoint["state_dict"].items():
+#             unified_state_dict[k.replace("module.", "")] = v
+        
+#         # Create temporary unified model on CPU
+#         temp_unified_model = DCAE()
+#         temp_unified_model.load_state_dict(unified_state_dict)
+        
+#         # Transfer encoder components to compress model
+#         compress_model.g_a.load_state_dict(temp_unified_model.g_a.state_dict())
+#         compress_model.h_a.load_state_dict(temp_unified_model.h_a.state_dict())
+        
+#         # Transfer decoder components to decompress model
+#         decompress_model.g_s.load_state_dict(temp_unified_model.g_s.state_dict())
+        
+#         # Transfer shared components to both models
+#         shared_components = [
+#             'dt', 'h_z_s1', 'h_z_s2', 'cc_mean_transforms', 
+#             'cc_scale_transforms', 'lrp_transforms', 'dt_cross_attention',
+#             'entropy_bottleneck', 'gaussian_conditional'
+#         ]
+        
+#         for component in shared_components:
+#             if hasattr(temp_unified_model, component):
+#                 if component == 'dt':
+#                     compress_model.dt.data = temp_unified_model.dt.data.clone()
+#                     decompress_model.dt.data = temp_unified_model.dt.data.clone()
+#                 else:
+#                     getattr(compress_model, component).load_state_dict(
+#                         getattr(temp_unified_model, component).state_dict()
+#                     )
+#                     getattr(decompress_model, component).load_state_dict(
+#                         getattr(temp_unified_model, component).state_dict()
+#                     )
+        
+#         del temp_unified_model  # Clean up memory
+#         print("Successfully transferred unified model weights to split models")
+#     else:
+#         raise ValueError("Checkpoint format not recognized. Expected either 'state_dict' key (unified model) or 'compress_model'/'decompress_model' keys (split model).")
+    
+#     print(f"Compression model device: {compress_device}")
+#     print(f"Decompression model device: {decompress_device}")
+
+
+
+
+# def full_pipeline_forward(compress_model, decompress_model, x, compress_device, decompress_device):
+#     """Simulate full pipeline for non-real mode evaluation with device handling"""
+#     # Ensure input is on compression device
+#     x = x.to(compress_device)
+    
+#     # Compression forward pass
+#     compress_out = compress_model.forward(x)
+    
+#     # Extract the necessary outputs for decompression
+#     y_hat = compress_out["y_hat"] 
+#     z_hat = compress_out["z_hat"]
+    
+#     # Transfer latents to decompression device if different
+#     if compress_device != decompress_device:
+#         y_hat = y_hat.to(decompress_device)
+#         z_hat = z_hat.to(decompress_device)
+    
+#     # Decompression forward pass
+#     decompress_out = decompress_model.forward(y_hat, z_hat)
+    
+#     # Transfer output back to original device for evaluation
+#     x_hat = decompress_out["x_hat"]
+#     if decompress_device != compress_device:
+#         x_hat = x_hat.to(compress_device)
+    
+#     # Combine outputs for evaluation
+#     combined_out = {
+#         "x_hat": x_hat,
+#         "likelihoods": compress_out["likelihoods"]
+#     }
+    
+#     return combined_out
+
+# def parse_args(argv):
+#     parser = argparse.ArgumentParser(description="Example testing script for split DCAE models with device control.")
+#     parser.add_argument("--cuda", action="store_true", help="Use cuda (deprecated, use --compress_device and --decompress_device)")
+#     parser.add_argument("--compress_device", type=str, default="cpu", 
+#                        help="Device for compression model (cpu, cuda, cuda:0, cuda:1, etc.)")
+#     parser.add_argument("--decompress_device", type=str, default="cuda",
+#                        help="Device for decompression model (cpu, cuda, cuda:0, cuda:1, etc.)")
+#     parser.add_argument(
+#         "--clip_max_norm",
+#         default=1.0,
+#         type=float,
+#         help="gradient clipping max norm (default: %(default)s",
+#     )
+#     parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint", default='/home/xie/DCAE/checkpoints/train_5/try_9/60.5/checkpoint_best.pth.tar') #, /home/xie/DCAE/60.5checkpoint_best.pth.tar'
+#     parser.add_argument("--data", type=str, help="Path to dataset", default='/home/xie/datasets/dummy/valid')
+#     parser.add_argument("--save_path", default='eval', type=str, help="Path to save")
+#     parser.add_argument(
+#         "--real", action="store_true"
+#     )
+#     parser.set_defaults(real=False)
+#     args = parser.parse_args(argv)
+#     return args
+
+# def main(argv):
+#     torch.backends.cudnn.enabled = False
+#     args = parse_args(argv)
+#     p = 128
+#     path = args.data
+#     img_list = []
+#     for file in os.listdir(path):
+#         if file[-3:] in ["jpg", "png", "peg"]:
+#             img_list.append(file)
+    
+#     # Handle device specification
+#     if args.cuda:
+#         print("Warning: --cuda flag is deprecated. Use --compress_device and --decompress_device instead.")
+#         if args.compress_device == "cpu" and args.decompress_device == "cpu":
+#             args.compress_device = "cuda"
+#             args.decompress_device = "cuda"
+    
+#     # Get actual devices
+#     compress_device = get_device(args.compress_device)
+#     decompress_device = get_device(args.decompress_device)
+    
+#     print(f"Compression device: {compress_device}")
+#     print(f"Decompression device: {decompress_device}")
+        
+#     # Create split models on respective devices
+#     compress_model = CompressModel().to(compress_device)
+#     decompress_model = DecompressModel().to(decompress_device)
+    
+#     compress_model.eval()
+#     decompress_model.eval()
+    
+#     # Create output directories
+#     compressed_dir = os.path.join(args.save_path,"compressed")
+#     reconstructed_dir = os.path.join(args.save_path,"reconstructed")
+#     os.makedirs(compressed_dir, exist_ok=True)
+#     os.makedirs(reconstructed_dir, exist_ok=True)
+    
+#     count = 0
+#     PSNR = 0
+#     Bit_rate = 0
+#     MS_SSIM = 0
+#     total_time = 0
+#     encode_time = 0
+#     decode_time = 0
+#     transfer_time = 0
+#     ave_flops = 0
+    
+#     # Add variables for compressed size tracking
+#     total_strings_size = 0
+#     total_shape_size = 0
+#     total_compressed_size = 0
+    
+#     if args.checkpoint:  
+#         load_pretrained_to_split_models(args.checkpoint, compress_model, decompress_model, 
+#                                        compress_device, decompress_device)
+        
+#     if args.real:
+#         # Update entropy models for actual compression/decompression
+#         compress_model.update()
+#         decompress_model.update()
+        
+#         for img_name in img_list:
+#             img_path = os.path.join(path, img_name)
+#             img = transforms.ToTensor()(Image.open(img_path).convert('RGB'))
+#             x = img.unsqueeze(0)
+#             x_padded, padding = pad(x, p)
+            
+#             # Move input to compression device
+#             x_padded = x_padded.to(compress_device)
+#             x = x.to(compress_device)
+
+#             count += 1
+#             with torch.no_grad():
+#                 # Compression phase
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 s = time.time()
+#                 out_enc = compress_model.compress(x_padded)
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 e = time.time()
+#                 encode_time += (e - s)
+#                 total_time += (e - s)
+
+#                 # Calculate compressed sizes
+#                 strings_size, shape_size = compute_compressed_size(out_enc["strings"], out_enc["shape"])
+#                 print(out_enc["shape"], len(out_enc['strings']), type(out_enc['strings']), len(out_enc["strings"][0]), len(out_enc["strings"][1]))
+#                 compressed_size = strings_size + shape_size
+                
+#                 total_strings_size += strings_size
+#                 total_shape_size += shape_size
+#                 total_compressed_size += compressed_size
+                
+#                 print(f"Strings size: {strings_size} bytes")
+#                 print(f"Shape size: {shape_size} bytes")
+#                 print(f"Total compressed size: {compressed_size} bytes")
+
+#                 # Save compressed data
+#                 img_base_name = img_name.split('.')[0]
+#                 compressed_file = os.path.join(compressed_dir, f"{img_base_name}_compressed.pkl")
+#                 save_compressed_data(out_enc["strings"], out_enc["shape"], compressed_file)
+#                 print(f"Saved compressed data: {compressed_file}")
+
+#                 # Data transfer time (if devices are different)
+#                 transfer_start = time.time()
+#                 # Note: strings are already on CPU, so no transfer needed for compressed data
+#                 transfer_end = time.time()
+#                 transfer_time += (transfer_end - transfer_start)
+
+#                 # Decompression phase
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 s = time.time()
+#                 out_dec = decompress_model.decompress(out_enc["strings"], out_enc["shape"])
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 e = time.time()
+#                 decode_time += (e - s)
+#                 total_time += (e - s)
+
+#                 # Transfer result back to compression device for evaluation
+#                 if compress_device != decompress_device:
+#                     out_dec["x_hat"] = out_dec["x_hat"].to(compress_device)
+
+#                 out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
+                
+#                 # Save reconstructed image
+#                 reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_reconstructed.png")
+#                 save_image(out_dec["x_hat"], reconstructed_file)
+#                 print(f"Saved reconstructed image: {reconstructed_file}")
+                
+#                 num_pixels = x.size(0) * x.size(2) * x.size(3)
+                
+#                 bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
+#                 psnr = compute_psnr(x, out_dec["x_hat"])
+#                 msssim = compute_msssim(x, out_dec["x_hat"])
+                
+#                 print(f'Bitrate: {bit_rate:.3f}bpp')
+#                 print(f'MS-SSIM: {msssim:.2f}dB')
+#                 print(f'PSNR: {psnr:.2f}dB')
+                
+#                 Bit_rate += bit_rate
+#                 PSNR += psnr
+#                 MS_SSIM += msssim
+                
+#     else:
+#         # Forward pass mode (training-like evaluation)
+#         for img_name in img_list:
+#             img_path = os.path.join(path, img_name)
+#             img = Image.open(img_path).convert('RGB')
+#             x = transforms.ToTensor()(img).unsqueeze(0)
+#             x_padded, padding = pad(x, p)
+
+#             count += 1
+#             with torch.no_grad():
+#                 # Synchronize both devices if CUDA
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+                    
+#                 s = time.time()
+                
+#                 # Use full pipeline simulation with device handling
+#                 out_net = full_pipeline_forward(compress_model, decompress_model, x_padded, 
+#                                               compress_device, decompress_device)
+                
+#                 if compress_device.type == 'cuda':
+#                     torch.cuda.synchronize(compress_device)
+#                 if decompress_device.type == 'cuda':
+#                     torch.cuda.synchronize(decompress_device)
+#                 e = time.time()
+#                 total_time += (e - s)
+                
+#                 out_net['x_hat'].clamp_(0, 1)
+#                 out_net["x_hat"] = crop(out_net["x_hat"], padding)
+                
+#                 # Ensure x is on the same device as output for comparison
+#                 x = x.to(out_net["x_hat"].device)
+                
+#                 # Save reconstructed image (forward mode)
+#                 img_base_name = img_name.split('.')[0]
+#                 reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_forward_reconstructed.png")
+#                 save_image(out_net["x_hat"], reconstructed_file)
+#                 print(f"Saved forward reconstructed image: {reconstructed_file}")
+                
+#                 psnr = compute_psnr(x, out_net["x_hat"])
+#                 msssim = compute_msssim(x, out_net["x_hat"])
+#                 bpp = compute_bpp(out_net)
+                
+#                 print(f'PSNR: {psnr:.2f}dB')
+#                 print(f'MS-SSIM: {msssim:.2f}dB')
+#                 print(f'Bit-rate: {bpp:.3f}bpp')
+                
+#                 PSNR += psnr
+#                 MS_SSIM += msssim
+#                 Bit_rate += bpp
+    
+#     # Calculate averages
+#     PSNR = PSNR / count
+#     MS_SSIM = MS_SSIM / count
+#     Bit_rate = Bit_rate / count
+#     total_time = total_time / count
+#     encode_time = encode_time / count
+#     decode_time = decode_time / count
+#     transfer_time = transfer_time / count
+#     ave_flops = ave_flops / count
+    
+#     # Calculate average compressed sizes
+#     if count > 0:
+#         avg_strings_size = total_strings_size / count
+#         avg_shape_size = total_shape_size / count
+#         avg_compressed_size = total_compressed_size / count
+#     else:
+#         avg_strings_size = avg_shape_size = avg_compressed_size = 0
+    
+#     print(f'\n=== EVALUATION RESULTS ===')
+#     print(f'Compression Device: {compress_device}')
+#     print(f'Decompression Device: {decompress_device}')
+#     print(f'average_PSNR: {PSNR:.2f} dB')
+#     print(f'average_MS-SSIM: {MS_SSIM:.4f}')
+#     print(f'average_Bit-rate: {Bit_rate:.3f} bpp')
+#     print(f'average_total_time: {total_time:.3f} ms')
+#     print(f'average_encode_time: {encode_time:.3f} ms')
+#     print(f'average_decode_time: {decode_time:.3f} ms')
+#     print(f'average_transfer_time: {transfer_time:.3f} ms')
+#     print(f'average_flops: {ave_flops:.3f}')
+    
+#     # Print compressed size statistics
+#     print(f'\n=== COMPRESSED SIZE STATISTICS ===')
+#     print(f'average_strings_size: {avg_strings_size:.2f} bytes')
+#     print(f'average_shape_size: {avg_shape_size:.2f} bytes')
+#     print(f'average_total_compressed_size: {avg_compressed_size:.2f} bytes')
+    
+#     print(f'\n=== SAVED FILES ===')
+#     print(f'Compressed data saved to: {compressed_dir}/')
+#     print(f'Reconstructed images saved to: {reconstructed_dir}/')
+
+# if __name__ == "__main__":
+#     print(torch.cuda.is_available())
+#     main(sys.argv[1:])
+
+
+## single compress, decompress and both of them
+
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
@@ -1629,6 +3023,19 @@ def compute_bpp(out_net):
     return sum(torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
               for likelihoods in out_net['likelihoods'].values()).item()
 
+def compute_compressed_size(strings, shape):
+    """Compute the size in bytes of compressed strings and shape"""
+    # Calculate size of strings
+    strings_size = 0
+    for string_list in strings:
+        for string in string_list:
+            strings_size += len(string)
+    
+    # Calculate size of shape (serialized)
+    shape_size = sys.getsizeof(pickle.dumps(shape))
+    
+    return strings_size, shape_size
+
 def pad(x, p):
     h, w = x.size(2), x.size(3)
     new_h = (h + p - 1) // p * p
@@ -1677,53 +3084,91 @@ def get_device(device_str):
     else:
         raise ValueError(f"Invalid device: {device_str}")
 
+
 def load_pretrained_to_split_models(checkpoint_path, compress_model, decompress_model, compress_device, decompress_device):
     """Load pretrained unified model weights to split models"""
     print(f"Loading pretrained weights from {checkpoint_path}")
     
-    # Load unified model checkpoint on CPU first to avoid memory issues
+    # Load checkpoint on CPU first to avoid memory issues
     checkpoint = torch.load(checkpoint_path, map_location='cpu')
-    unified_state_dict = {}
     
-    # Clean up state dict keys
-    for k, v in checkpoint["state_dict"].items():
-        unified_state_dict[k.replace("module.", "")] = v
+    # Check if this is a split model checkpoint (from train_5.py) or unified model checkpoint
+    if 'compress_model' in checkpoint and 'decompress_model' in checkpoint:
+        # This is a split model checkpoint from train_5.py
+        print("Loading split model checkpoint...")
+        
+        # Load compress model state
+        if compress_model is not None:
+            compress_state_dict = {}
+            for k, v in checkpoint['compress_model']['state_dict'].items():
+                compress_state_dict[k.replace("module.", "")] = v
+            compress_model.load_state_dict(compress_state_dict)
+        
+        # Load decompress model state  
+        if decompress_model is not None:
+            decompress_state_dict = {}
+            for k, v in checkpoint['decompress_model']['state_dict'].items():
+                decompress_state_dict[k.replace("module.", "")] = v
+            decompress_model.load_state_dict(decompress_state_dict)
+        
+        print("Successfully loaded split model checkpoint")
+        
+    elif 'state_dict' in checkpoint:
+        # This is a unified model checkpoint - use original logic
+        print("Loading unified model checkpoint...")
+        unified_state_dict = {}
+        
+        # Clean up state dict keys
+        for k, v in checkpoint["state_dict"].items():
+            unified_state_dict[k.replace("module.", "")] = v
+        
+        # Create temporary unified model on CPU
+        temp_unified_model = DCAE()
+        temp_unified_model.load_state_dict(unified_state_dict)
+        
+        # Transfer encoder components to compress model
+        if compress_model is not None:
+            compress_model.g_a.load_state_dict(temp_unified_model.g_a.state_dict())
+            compress_model.h_a.load_state_dict(temp_unified_model.h_a.state_dict())
+        
+        # Transfer decoder components to decompress model
+        if decompress_model is not None:
+            decompress_model.g_s.load_state_dict(temp_unified_model.g_s.state_dict())
+        
+        # Transfer shared components to both models
+        shared_components = [
+            'dt', 'h_z_s1', 'h_z_s2', 'cc_mean_transforms', 
+            'cc_scale_transforms', 'lrp_transforms', 'dt_cross_attention',
+            'entropy_bottleneck', 'gaussian_conditional'
+        ]
+        
+        for component in shared_components:
+            if hasattr(temp_unified_model, component):
+                if component == 'dt':
+                    if compress_model is not None:
+                        compress_model.dt.data = temp_unified_model.dt.data.clone()
+                    if decompress_model is not None:
+                        decompress_model.dt.data = temp_unified_model.dt.data.clone()
+                else:
+                    if compress_model is not None and hasattr(compress_model, component):
+                        getattr(compress_model, component).load_state_dict(
+                            getattr(temp_unified_model, component).state_dict()
+                        )
+                    if decompress_model is not None and hasattr(decompress_model, component):
+                        getattr(decompress_model, component).load_state_dict(
+                            getattr(temp_unified_model, component).state_dict()
+                        )
+        
+        del temp_unified_model  # Clean up memory
+        print("Successfully transferred unified model weights to split models")
+    else:
+        raise ValueError("Checkpoint format not recognized. Expected either 'state_dict' key (unified model) or 'compress_model'/'decompress_model' keys (split model).")
     
-    # Create temporary unified model on CPU
-    temp_unified_model = DCAE()
-    temp_unified_model.load_state_dict(unified_state_dict)
-    
-    # Transfer encoder components to compress model
-    compress_model.g_a.load_state_dict(temp_unified_model.g_a.state_dict())
-    compress_model.h_a.load_state_dict(temp_unified_model.h_a.state_dict())
-    
-    # Transfer decoder components to decompress model
-    decompress_model.g_s.load_state_dict(temp_unified_model.g_s.state_dict())
-    
-    # Transfer shared components to both models
-    shared_components = [
-        'dt', 'h_z_s1', 'h_z_s2', 'cc_mean_transforms', 
-        'cc_scale_transforms', 'lrp_transforms', 'dt_cross_attention',
-        'entropy_bottleneck', 'gaussian_conditional'
-    ]
-    
-    for component in shared_components:
-        if hasattr(temp_unified_model, component):
-            if component == 'dt':
-                compress_model.dt.data = temp_unified_model.dt.data.clone()
-                decompress_model.dt.data = temp_unified_model.dt.data.clone()
-            else:
-                getattr(compress_model, component).load_state_dict(
-                    getattr(temp_unified_model, component).state_dict()
-                )
-                getattr(decompress_model, component).load_state_dict(
-                    getattr(temp_unified_model, component).state_dict()
-                )
-    
-    print("Successfully transferred pretrained weights to split models")
-    print(f"Compression model device: {compress_device}")
-    print(f"Decompression model device: {decompress_device}")
-    del temp_unified_model  # Clean up memory
+    if compress_model is not None:
+        print(f"Compression model device: {compress_device}")
+    if decompress_model is not None:
+        print(f"Decompression model device: {decompress_device}")
+
 
 def full_pipeline_forward(compress_model, decompress_model, x, compress_device, decompress_device):
     """Simulate full pipeline for non-real mode evaluation with device handling"""
@@ -1761,7 +3206,7 @@ def full_pipeline_forward(compress_model, decompress_model, x, compress_device, 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description="Example testing script for split DCAE models with device control.")
     parser.add_argument("--cuda", action="store_true", help="Use cuda (deprecated, use --compress_device and --decompress_device)")
-    parser.add_argument("--compress_device", type=str, default="cuda", 
+    parser.add_argument("--compress_device", type=str, default="cpu", 
                        help="Device for compression model (cpu, cuda, cuda:0, cuda:1, etc.)")
     parser.add_argument("--decompress_device", type=str, default="cuda",
                        help="Device for decompression model (cpu, cuda, cuda:0, cuda:1, etc.)")
@@ -1771,11 +3216,16 @@ def parse_args(argv):
         type=float,
         help="gradient clipping max norm (default: %(default)s",
     )
-    parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint", default='60.5checkpoint_best.pth.tar')
+    parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint", default='/home/xie/DCAE/checkpoints/train_5/try_9/60.5/checkpoint_best.pth.tar')
     parser.add_argument("--data", type=str, help="Path to dataset", default='/home/xie/datasets/dummy/valid')
     parser.add_argument("--save_path", default='eval', type=str, help="Path to save")
+    parser.add_argument("--compressed_data_path", default='eval/compressed',type=str, help="Path to compressed data for decompress-only mode")
     parser.add_argument(
         "--real", action="store_true"
+    )
+    parser.add_argument(
+        "--mode", type=str, choices=['compress', 'decompress', 'both'], default='both',
+        help="Operation mode: 'compress' (compress only), 'decompress' (decompress only), 'both' (compress and decompress)"
     )
     parser.set_defaults(real=False)
     args = parser.parse_args(argv)
@@ -1802,19 +3252,27 @@ def main(argv):
     compress_device = get_device(args.compress_device)
     decompress_device = get_device(args.decompress_device)
     
-    print(f"Compression device: {compress_device}")
-    print(f"Decompression device: {decompress_device}")
+    print(f"Operation mode: {args.mode}")
+    if args.mode in ['compress', 'both']:
+        print(f"Compression device: {compress_device}")
+    if args.mode in ['decompress', 'both']:
+        print(f"Decompression device: {decompress_device}")
         
-    # Create split models on respective devices
-    compress_model = CompressModel().to(compress_device)
-    decompress_model = DecompressModel().to(decompress_device)
+    # Create split models based on mode
+    compress_model = None
+    decompress_model = None
     
-    compress_model.eval()
-    decompress_model.eval()
+    if args.mode in ['compress', 'both']:
+        compress_model = CompressModel().to(compress_device)
+        compress_model.eval()
+    
+    if args.mode in ['decompress', 'both']:
+        decompress_model = DecompressModel().to(decompress_device)
+        decompress_model.eval()
     
     # Create output directories
-    compressed_dir = os.path.join(args.save_path,"compressed")
-    reconstructed_dir = os.path.join(args.save_path,"reconstructed")
+    compressed_dir = os.path.join(args.save_path, "compressed")
+    reconstructed_dir = os.path.join(args.save_path, "reconstructed")
     os.makedirs(compressed_dir, exist_ok=True)
     os.makedirs(reconstructed_dir, exist_ok=True)
     
@@ -1827,7 +3285,11 @@ def main(argv):
     decode_time = 0
     transfer_time = 0
     ave_flops = 0
-    encoder_time = 0
+    
+    # Add variables for compressed size tracking
+    total_strings_size = 0
+    total_shape_size = 0
+    total_compressed_size = 0
     
     if args.checkpoint:  
         load_pretrained_to_split_models(args.checkpoint, compress_model, decompress_model, 
@@ -1835,8 +3297,10 @@ def main(argv):
         
     if args.real:
         # Update entropy models for actual compression/decompression
-        compress_model.update()
-        decompress_model.update()
+        if compress_model is not None:
+            compress_model.update()
+        if decompress_model is not None:
+            decompress_model.update()
         
         for img_name in img_list:
             img_path = os.path.join(path, img_name)
@@ -1844,73 +3308,139 @@ def main(argv):
             x = img.unsqueeze(0)
             x_padded, padding = pad(x, p)
             
-            # Move input to compression device
-            x_padded = x_padded.to(compress_device)
-            x = x.to(compress_device)
-
+            img_base_name = img_name.split('.')[0]
+            compressed_file = os.path.join(compressed_dir, f"{img_base_name}_compressed.pkl")
+            
             count += 1
             with torch.no_grad():
-                # Compression phase
-                if compress_device.type == 'cuda':
-                    torch.cuda.synchronize(compress_device)
-                s = time.time()
-                out_enc = compress_model.compress(x_padded)
-                if compress_device.type == 'cuda':
-                    torch.cuda.synchronize(compress_device)
-                e = time.time()
-                encode_time += (e - s)
-                total_time += (e - s)
+                # COMPRESS PHASE
+                if args.mode in ['compress', 'both']:
+                    # Move input to compression device
+                    x_padded = x_padded.to(compress_device)
+                    x = x.to(compress_device)
 
-                # Save compressed data
-                img_base_name = img_name.split('.')[0]
-                compressed_file = os.path.join(compressed_dir, f"{img_base_name}_compressed.pkl")
-                save_compressed_data(out_enc["strings"], out_enc["shape"], compressed_file)
-                print(f"Saved compressed data: {compressed_file}")
+                    # Compression phase
+                    if compress_device.type == 'cuda':
+                        torch.cuda.synchronize(compress_device)
+                    s = time.time()
+                    out_enc = compress_model.compress(x_padded)
+                    if compress_device.type == 'cuda':
+                        torch.cuda.synchronize(compress_device)
+                    e = time.time()
+                    encode_time += (e - s)
+                    total_time += (e - s)
 
-                # Data transfer time (if devices are different)
-                transfer_start = time.time()
-                # Note: strings are already on CPU, so no transfer needed for compressed data
-                transfer_end = time.time()
-                transfer_time += (transfer_end - transfer_start)
+                    # Calculate compressed sizes
+                    strings_size, shape_size = compute_compressed_size(out_enc["strings"], out_enc["shape"])
+                    print(f"Strings size: {strings_size} bytes")
+                    print(f"Shape size: {shape_size} bytes")
+                    print(f"Total compressed size: {strings_size + shape_size} bytes")
 
-                # Decompression phase
-                if decompress_device.type == 'cuda':
-                    torch.cuda.synchronize(decompress_device)
-                s = time.time()
-                out_dec = decompress_model.decompress(out_enc["strings"], out_enc["shape"])
-                if decompress_device.type == 'cuda':
-                    torch.cuda.synchronize(decompress_device)
-                e = time.time()
-                decode_time += (e - s)
-                total_time += (e - s)
+                    total_strings_size += strings_size
+                    total_shape_size += shape_size
+                    total_compressed_size += (strings_size + shape_size)
 
-                # Transfer result back to compression device for evaluation
-                if compress_device != decompress_device:
-                    out_dec["x_hat"] = out_dec["x_hat"].to(compress_device)
+                    # Save compressed data
+                    save_compressed_data(out_enc["strings"], out_enc["shape"], compressed_file)
+                    print(f"Saved compressed data: {compressed_file}")
 
-                out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
-                
-                # Save reconstructed image
-                reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_reconstructed.png")
-                save_image(out_dec["x_hat"], reconstructed_file)
-                print(f"Saved reconstructed image: {reconstructed_file}")
-                
-                num_pixels = x.size(0) * x.size(2) * x.size(3)
-                
-                bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
-                psnr = compute_psnr(x, out_dec["x_hat"])
-                msssim = compute_msssim(x, out_dec["x_hat"])
-                
-                print(f'Bitrate: {bit_rate:.3f}bpp')
-                print(f'MS-SSIM: {msssim:.2f}dB')
-                print(f'PSNR: {psnr:.2f}dB')
-                
-                Bit_rate += bit_rate
-                PSNR += psnr
-                MS_SSIM += msssim
-                
+                    if args.mode == 'compress':
+                        print(f"Compression completed for {img_name}")
+                        continue  # Skip decompression
+
+                # DECOMPRESS PHASE
+                if args.mode in ['decompress', 'both']:
+                    # Load compressed data if in decompress-only mode
+                    if args.mode == 'decompress':
+                        if args.compressed_data_path:
+                            # Load from specified directory
+                            compressed_file = os.path.join(args.compressed_data_path, f"{img_base_name}_compressed.pkl")
+                        else:
+                            # Load from default compressed directory
+                            compressed_file = os.path.join(compressed_dir, f"{img_base_name}_compressed.pkl")
+                        
+                        if not os.path.exists(compressed_file):
+                            print(f"Warning: Compressed file not found: {compressed_file}")
+                            continue
+                        
+                        strings, shape = load_compressed_data(compressed_file)
+                        print(f"Loaded compressed data from: {compressed_file}")
+                        
+                        # Calculate original image dimensions for padding info
+                        # For decompress-only mode, we need to handle padding differently
+                        # You might want to save padding info with compressed data
+                        # For now, we'll assume standard padding
+                        img_temp = transforms.ToTensor()(Image.open(img_path).convert('RGB'))
+                        x_temp = img_temp.unsqueeze(0)
+                        _, padding = pad(x_temp, p)
+                        x = x_temp  # For PSNR calculation later
+                    else:
+                        # Use data from compression phase
+                        strings = out_enc["strings"]
+                        shape = out_enc["shape"]
+
+                    # Data transfer time (if devices are different)
+                    transfer_start = time.time()
+                    # Note: strings are already on CPU, so no transfer needed for compressed data
+                    transfer_end = time.time()
+                    transfer_time += (transfer_end - transfer_start)
+
+                    # Decompression phase
+                    if decompress_device.type == 'cuda':
+                        torch.cuda.synchronize(decompress_device)
+                    s = time.time()
+                    out_dec = decompress_model.decompress(strings, shape)
+                    if decompress_device.type == 'cuda':
+                        torch.cuda.synchronize(decompress_device)
+                    e = time.time()
+                    decode_time += (e - s)
+                    total_time += (e - s)
+
+                    # Transfer result back to compression device for evaluation
+                    if compress_device and compress_device != decompress_device:
+                        out_dec["x_hat"] = out_dec["x_hat"].to(compress_device)
+                    elif not compress_device:
+                        # For decompress-only mode, keep on decompress device
+                        pass
+
+                    out_dec["x_hat"] = crop(out_dec["x_hat"], padding)
+                    
+                    # Save reconstructed image
+                    reconstructed_file = os.path.join(reconstructed_dir, f"{img_base_name}_reconstructed.png")
+                    save_image(out_dec["x_hat"], reconstructed_file)
+                    print(f"Saved reconstructed image: {reconstructed_file}")
+                    
+                    # Calculate metrics only if we have both original and reconstructed
+                    if args.mode in ['decompress', 'both']:
+                        # Ensure x is on the same device as reconstructed image
+                        x = x.to(out_dec["x_hat"].device)
+                        
+                        if args.mode == 'both':
+                            # Calculate bitrate from compression
+                            num_pixels = x.size(0) * x.size(2) * x.size(3)
+                            bit_rate = sum(len(s[0]) for s in out_enc["strings"]) * 8.0 / num_pixels
+                        else:
+                            # For decompress-only, we can't calculate exact bitrate without compression info
+                            # You might want to save this info with compressed data
+                            bit_rate = 0.0
+                        
+                        psnr = compute_psnr(x, out_dec["x_hat"])
+                        msssim = compute_msssim(x, out_dec["x_hat"])
+                        
+                        print(f'Bitrate: {bit_rate:.3f}bpp')
+                        print(f'MS-SSIM: {msssim:.2f}dB')
+                        print(f'PSNR: {psnr:.2f}dB')
+                        
+                        Bit_rate += bit_rate
+                        PSNR += psnr
+                        MS_SSIM += msssim
+                    
     else:
-        # Forward pass mode (training-like evaluation)
+        # Forward pass mode (training-like evaluation) - only works for 'both' mode
+        if args.mode != 'both':
+            print("Forward pass mode (--real=False) only supports 'both' mode")
+            return
+            
         for img_name in img_list:
             img_path = os.path.join(path, img_name)
             img = Image.open(img_path).convert('RGB')
@@ -1963,32 +3493,56 @@ def main(argv):
                 Bit_rate += bpp
     
     # Calculate averages
-    PSNR = PSNR / count
-    MS_SSIM = MS_SSIM / count
-    Bit_rate = Bit_rate / count
-    total_time = total_time / count
-    encode_time = encode_time / count
-    decode_time = decode_time / count
-    transfer_time = transfer_time / count
-    ave_flops = ave_flops / count
-    encoder_time = encoder_time / count
+    if count > 0:
+        PSNR = PSNR / count
+        MS_SSIM = MS_SSIM / count
+        Bit_rate = Bit_rate / count
+        total_time = total_time / count
+        encode_time = encode_time / count
+        decode_time = decode_time / count
+        transfer_time = transfer_time / count
+        ave_flops = ave_flops / count
+        
+        # Calculate average compressed sizes
+        avg_strings_size = total_strings_size / count
+        avg_shape_size = total_shape_size / count
+        avg_compressed_size = total_compressed_size / count
+    else:
+        avg_strings_size = avg_shape_size = avg_compressed_size = 0
     
     print(f'\n=== EVALUATION RESULTS ===')
-    print(f'Compression Device: {compress_device}')
-    print(f'Decompression Device: {decompress_device}')
-    print(f'average_encoder_time: {encoder_time:.3f} ms')
-    print(f'average_PSNR: {PSNR:.2f} dB')
-    print(f'average_MS-SSIM: {MS_SSIM:.4f}')
-    print(f'average_Bit-rate: {Bit_rate:.3f} bpp')
+    print(f'Operation Mode: {args.mode}')
+    if compress_model is not None:
+        print(f'Compression Device: {compress_device}')
+    if decompress_model is not None:
+        print(f'Decompression Device: {decompress_device}')
+    
+    if args.mode in ['decompress', 'both']:
+        print(f'average_PSNR: {PSNR:.2f} dB')
+        print(f'average_MS-SSIM: {MS_SSIM:.4f}')
+    if args.mode in ['compress', 'both']:
+        print(f'average_Bit-rate: {Bit_rate:.3f} bpp')
+    
     print(f'average_total_time: {total_time:.3f} ms')
-    print(f'average_encode_time: {encode_time:.3f} ms')
-    print(f'average_decode_time: {decode_time:.3f} ms')
+    if args.mode in ['compress', 'both']:
+        print(f'average_encode_time: {encode_time:.3f} ms')
+    if args.mode in ['decompress', 'both']:
+        print(f'average_decode_time: {decode_time:.3f} ms')
     print(f'average_transfer_time: {transfer_time:.3f} ms')
     print(f'average_flops: {ave_flops:.3f}')
     
+    # Print compressed size statistics
+    if args.mode in ['compress', 'both']:
+        print(f'\n=== COMPRESSED SIZE STATISTICS ===')
+        print(f'average_strings_size: {avg_strings_size:.2f} bytes')
+        print(f'average_shape_size: {avg_shape_size:.2f} bytes')
+        print(f'average_total_compressed_size: {avg_compressed_size:.2f} bytes')
+    
     print(f'\n=== SAVED FILES ===')
-    print(f'Compressed data saved to: {compressed_dir}/')
-    print(f'Reconstructed images saved to: {reconstructed_dir}/')
+    if args.mode in ['compress', 'both']:
+        print(f'Compressed data saved to: {compressed_dir}/')
+    if args.mode in ['decompress', 'both']:
+        print(f'Reconstructed images saved to: {reconstructed_dir}/')
 
 if __name__ == "__main__":
     print(torch.cuda.is_available())

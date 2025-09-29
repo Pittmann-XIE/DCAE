@@ -1979,8 +1979,8 @@ def parse_args(argv):
     )
     parser.add_argument("--checkpoint", type=str, help="Path to a checkpoint", default="./60.5checkpoint_best.pth.tar")
     parser.add_argument("--data", type=str, help="Path to dataset", default='../datasets/dummy/valid')
-    parser.add_argument("--save_path", default='dataset/compressed_results', type=str, help="Path to save results")
-    parser.add_argument("--compressed_path", default="./dataset/compressed_data", type=str, help="Path to save/load compressed data")
+    parser.add_argument("--save_path", default='eval/compressed', type=str, help="Path to save results")
+    parser.add_argument("--compressed_path", default="eval/compressed", type=str, help="Path to save/load compressed data")
     parser.add_argument(
         "--mode", 
         choices=["compress", "decompress", "both", "size_analysis"], 
