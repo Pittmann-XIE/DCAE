@@ -1,8 +1,11 @@
 import os
+import sys
 import argparse
 import math
-import sys
 import time
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,17 +14,12 @@ import torch.distributed.autograd as dist_autograd
 from torch.distributed.optim import DistributedOptimizer
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torch.utils.tensorboard import SummaryWriter
 import wandb
 
 from compressai.datasets import ImageFolder
 from pytorch_msssim import ms_ssim
-
-import sys
-import os
-# Add the project root directory to python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.dcae_5 import CompressModel
+from models import DCAE 
 
 from rpc_shared import (
     MASTER_ADDR, MASTER_PORT, create_remote_decompressor, 
@@ -30,6 +28,65 @@ from rpc_shared import (
 
 os.environ.setdefault('TP_SOCKET_IFNAME', 'eno8303')
 os.environ.setdefault('GLOO_SOCKET_IFNAME', 'eno8303')
+
+def load_pretrained_checkpoint(compress_model, decompress_rref, checkpoint_path, is_unified=False):
+    print(f"Loading checkpoint from: {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    
+    if is_unified:
+        print("-> Type: Unified DCAE Checkpoint")
+        unified_state_dict = {}
+        raw_state = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+        for k, v in raw_state.items():
+            unified_state_dict[k.replace("module.", "")] = v
+        
+        temp_unified = DCAE()
+        temp_unified.load_state_dict(unified_state_dict)
+        
+        print("-> Loading Compressor weights locally...")
+        compress_model.g_a.load_state_dict(temp_unified.g_a.state_dict())
+        compress_model.h_a.load_state_dict(temp_unified.h_a.state_dict())
+        
+        print("-> Preparing Decompressor weights for RPC...")
+        decompress_state_dict = {}
+        
+        for k, v in temp_unified.g_s.state_dict().items():
+            decompress_state_dict[f"g_s.{k}"] = v
+            
+        shared_components = [
+            'dt', 'h_z_s1', 'h_z_s2', 'cc_mean_transforms', 
+            'cc_scale_transforms', 'lrp_transforms', 'dt_cross_attention',
+            'entropy_bottleneck', 'gaussian_conditional'
+        ]
+        
+        for comp in shared_components:
+            if hasattr(compress_model, comp):
+                if comp == 'dt':
+                    getattr(compress_model, comp).data = getattr(temp_unified, comp).data.clone()
+                else:
+                    getattr(compress_model, comp).load_state_dict(getattr(temp_unified, comp).state_dict())
+            
+            if hasattr(temp_unified, comp):
+                obj = getattr(temp_unified, comp)
+                if comp == 'dt':
+                    decompress_state_dict['dt'] = obj.data.clone()
+                else:
+                    comp_state = obj.state_dict()
+                    for k, v in comp_state.items():
+                        decompress_state_dict[f"{comp}.{k}"] = v
+
+        print("-> Sending weights to Worker via RPC...")
+        decompress_rref.rpc_sync().load_full_state_dict(decompress_state_dict)
+        print("-> Checkpoint loaded successfully.")
+        del temp_unified
+
+    else:
+        print("-> Type: Split/RPC Checkpoint")
+        if 'compress_model' in checkpoint:
+            compress_model.load_state_dict(checkpoint['compress_model'])
+            decompress_rref.rpc_sync().load_full_state_dict(checkpoint['decompress_model'])
+        else:
+            raise ValueError("Unknown checkpoint format")
 
 class RateDistortionLoss(nn.Module):
     def __init__(self, lmbda=1e-2, type='mse', device='cpu'):
@@ -42,17 +99,9 @@ class RateDistortionLoss(nn.Module):
     def forward(self, x_hat, target, likelihoods):
         N, _, H, W = target.size()
         num_pixels = N * H * W
-
-        # Likelihoods are on Master (CPU/GPU), compute BPP locally
-        bpp_loss = sum(
-            (torch.log(l).sum() / (-math.log(2) * num_pixels))
-            for l in likelihoods.values()
-        )
-
-        # Ensure target is on the same device as x_hat (likely CPU if Master is CPU)
+        bpp_loss = sum((torch.log(l).sum() / (-math.log(2) * num_pixels)) for l in likelihoods.values())
         if target.device != x_hat.device:
             target = target.to(x_hat.device)
-
         if self.type == 'mse':
             mse_loss = self.mse(x_hat, target)
             loss = self.lmbda * 255 ** 2 * mse_loss + bpp_loss
@@ -63,28 +112,19 @@ class RateDistortionLoss(nn.Module):
             return loss, ms_ssim_loss, bpp_loss
 
 def collect_shared_params(model):
-    """
-    Extracts state_dict of shared components identified in train_5.py
-    to send to the worker.
-    """
     shared_prefixes = [
         'dt', 'dt_cross_attention', 'cc_mean_transforms', 
         'cc_scale_transforms', 'lrp_transforms', 'h_z_s1', 'h_z_s2',
         'entropy_bottleneck', 'gaussian_conditional'
     ]
-    
     full_state = model.state_dict()
     shared_state = {}
-    
     for key, value in full_state.items():
-        # Check if key starts with any shared prefix
         if any(key.startswith(prefix) for prefix in shared_prefixes):
             shared_state[key] = value.cpu()
-            
     return shared_state
 
 def run_training(args):
-    # --- 1. Init RPC ---
     os.environ['MASTER_ADDR'] = MASTER_ADDR
     os.environ['MASTER_PORT'] = MASTER_PORT
     
@@ -95,14 +135,14 @@ def run_training(args):
         _transports=["uv"]
     )
     
-    # If Master has GPU, map it to Worker GPU for direct transfer
     if args.cuda and torch.cuda.is_available():
-        rpc_backend_options.device_maps = {"worker": {"cuda:0": "cuda:0"}}
+        rpc_backend_options.device_maps = {
+            "worker": {torch.device("cuda:0"): torch.device("cuda:0")}
+        }
 
     print(f"Initializing Master on {MASTER_ADDR}...")
     rpc.init_rpc("master", rank=0, world_size=2, rpc_backend_options=rpc_backend_options)
 
-    # --- 2. Setup Models ---
     device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
     print(f"Local CompressModel on: {device}")
     
@@ -117,27 +157,28 @@ def run_training(args):
         timeout=RPC_TIMEOUT
     )
 
-    # --- 3. Optimizers ---
-    # Wrap local params in RRef for DistributedOptimizer
+    if args.checkpoint:
+        load_pretrained_checkpoint(
+            compress_model, 
+            decompress_rref, 
+            args.checkpoint, 
+            is_unified=args.load_pretrained_checkpoint
+        )
+    
     local_params = [rpc.RRef(p) for p in compress_model.parameters() if p.requires_grad]
-    # Fetch remote params RRefs
     remote_params = decompress_rref.rpc_sync().parameter_rrefs()
     
-    # Combined Distributed Optimizer
-    # This replaces the separate compress/decompress optimizers + gradient sync
     dist_optimizer = DistributedOptimizer(
         optim.Adam,
         local_params + remote_params,
         lr=args.learning_rate
     )
 
-    # Local Aux Optimizer (Entropy Bottleneck) - Standard Optimizer
     compress_aux_optimizer = optim.Adam(
         (p for n, p in compress_model.named_parameters() if n.endswith(".quantiles")),
         lr=args.aux_learning_rate,
     )
 
-    # --- 4. Dataset & Logging ---
     wandb.init(project=args.wandb_project, name=f"RPC_Split_{args.lmbda}")
     
     train_transforms = transforms.Compose([transforms.RandomCrop(args.patch_size), transforms.ToTensor()])
@@ -147,55 +188,38 @@ def run_training(args):
 
     criterion = RateDistortionLoss(lmbda=args.lmbda, type=args.type, device=device)
 
-    # --- 5. Training Loop ---
     print("Starting training...")
     for epoch in range(args.epochs):
         compress_model.train()
         
         for i, d in enumerate(train_dataloader):
             d = d.to(device)
-
-            # --- Distributed Autograd ---
+            
             with dist_autograd.context() as context_id:
-                
-                # A. Compress (Local)
                 out_enc = compress_model(d)
                 y_hat, z_hat = out_enc['y_hat'], out_enc['z_hat']
                 
-                # B. Decompress (Remote)
-                # RPC handles sending y_hat/z_hat to worker and getting x_hat back
                 x_hat = decompress_rref.rpc_sync().forward(y_hat, z_hat)
-                
-                # Ensure x_hat is on local device for loss calculation
                 if x_hat.device != device:
                     x_hat = x_hat.to(device)
 
-                # C. Loss
                 loss, dist_loss, bpp_loss = criterion(x_hat, d, out_enc['likelihoods'])
 
-                # D. Backward & Step
                 dist_autograd.backward(context_id, [loss])
                 dist_optimizer.step(context_id)
 
-            # --- Aux Optimizer (Local) ---
             compress_aux_optimizer.zero_grad()
             aux_loss = compress_model.aux_loss()
             aux_loss.backward()
             compress_aux_optimizer.step()
 
-            # --- Periodic Synchronization ---
-            # Sync shared weights every 5 steps (same as train_5.py line 258)
             if (i + 1) % 5 == 0:
-                # 1. Update entropy tables locally
                 if (i + 1) % 50 == 0:
                     compress_model.update()
-                    # Trigger remote update
                     decompress_rref.rpc_sync().update_entropy_tables()
 
-                # 2. Sync shared parameters (mimics ParameterSync)
-                # We collect local shared weights and force them onto the worker
                 shared_weights = collect_shared_params(compress_model)
-                decompress_rref.rpc_async().sync_shared_weights(shared_weights)
+                decompress_rref.rpc_sync().sync_shared_weights(shared_weights)
 
             if i % 10 == 0:
                 print(f"Epoch {epoch} [{i}/{len(train_dataloader)}] "
@@ -203,13 +227,13 @@ def run_training(args):
                 wandb.log({
                     "train/loss": loss.item(),
                     "train/bpp": bpp_loss.item(),
+                    "train/dist_loss": dist_loss.item(),
                     "train/aux": aux_loss.item()
                 })
 
-        # Save Checkpoint
         if args.save:
-            # We must fetch remote state to save a complete checkpoint
-            remote_state = decompress_rref.rpc_sync().model.state_dict()
+            # --- FIX HERE: Use method call instead of attribute access ---
+            remote_state = decompress_rref.rpc_sync().get_model_state_dict()
             torch.save({
                 'epoch': epoch,
                 'compress_model': compress_model.state_dict(),
@@ -220,7 +244,7 @@ def run_training(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--dataset", type=str, required=True)
+    parser.add_argument("-d", "--dataset", type=str, default='../dataset')
     parser.add_argument("-e", "--epochs", default=100, type=int)
     parser.add_argument("-lr", "--learning-rate", default=1e-4, type=float)
     parser.add_argument("--aux-learning-rate", default=1e-3, type=float)
@@ -231,11 +255,13 @@ if __name__ == "__main__":
     parser.add_argument("--save", action="store_true", default=True)
     parser.add_argument("--save_path", type=str, default='./checkpoints_rpc')
     parser.add_argument("--type", type=str, default='mse')
-    parser.add_argument("--N", type=int, default=128)
-    parser.add_argument("--M", type=int, default=192)
+    parser.add_argument("--N", type=int, default=192)
+    parser.add_argument("--M", type=int, default=320)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--wandb_project", type=str, default="RPC_Compression")
-    
+    parser.add_argument("--checkpoint", type=str, default='../60.5checkpoint_best.pth.tar')
+    parser.add_argument("--load_pretrained_checkpoint", action="store_true", default=True)
+
     args = parser.parse_args()
     os.makedirs(args.save_path, exist_ok=True)
     run_training(args)
