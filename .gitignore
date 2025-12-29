@@ -15,4 +15,6 @@
 /train_compress_only_*
 /wandb
 /eval
-
+/rpc/checkpoints/*
+/rpc/compressed/*
+/rpc/decompressed/*
