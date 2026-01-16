@@ -1,3 +1,4 @@
+# --- START OF FILE worker.py ---
 import os
 import torch
 import torch.distributed.rpc as rpc
@@ -6,10 +7,12 @@ import logging
 import sys
 from rpc_shared import MASTER_ADDR, MASTER_PORT
 
-# --- NETWORK INTERFACE SETUP (Check 'ip addr' on your machine) ---
-os.environ.setdefault('TP_SOCKET_IFNAME', 'enx00e04c6803a6') 
+# --- NETWORK INTERFACE SETUP ---
+# CHANGE 'enx...' to your actual interface name (e.g., 'eth0', 'ib0')
+# Run 'ip addr' in terminal to check.
+os.environ.setdefault('TP_SOCKET_IFNAME', 'enx00e04c6803a6')
 os.environ.setdefault('GLOO_SOCKET_IFNAME', 'enx00e04c6803a6')
-# -----------------------------------------------------------------
+# -------------------------------
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger("WorkerNode")
@@ -22,11 +25,11 @@ def run_worker(rank, world_size, master_addr, master_port, device):
         init_method=f"tcp://{master_addr}:{master_port}",
         num_worker_threads=16,
         rpc_timeout=600.0,
-        _transports=["uv"]
+        _transports=["uv"] # Use 'uv' for TCP, 'ibverbs' for InfiniBand
     )
 
-    if torch.cuda.is_available() and "cuda" in device:
-        # Maps the generic "cuda:0" request from Master to the specific local GPU
+    if torch.cuda.is_available():
+        # Map "cuda:0" from Master to the local GPU
         rpc_backend_options.device_maps = {
             "master": {torch.device(device): torch.device(device)} 
         }
